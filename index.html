@@ -55,6 +55,12 @@
   [data-theme="dark"] .badge.ABAIXODOLM{background:rgba(232,179,57,.15);}
   [data-theme="dark"] .badge.ACIMADAJORNADA{background:rgba(61,139,253,.15);}
   [data-theme="dark"] .badge.SEMLANCAMENTO{background:rgba(224,80,90,.15);}
+  .badge.Produtivo{background:rgba(28,138,82,.13); color:var(--ok);}
+  .badge.Neutro{background:rgba(165,105,10,.13); color:var(--warn);}
+  .badge.Improdutivo{background:rgba(178,58,53,.13); color:var(--danger);}
+  [data-theme="dark"] .badge.Produtivo{background:rgba(47,191,113,.15);}
+  [data-theme="dark"] .badge.Neutro{background:rgba(232,179,57,.15);}
+  [data-theme="dark"] .badge.Improdutivo{background:rgba(224,80,90,.15);}
 
   .filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;}
   .filters input, .filters select{
@@ -121,17 +127,33 @@
   .dh-close{border:none; background:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; padding:0 4px;}
   .dh-close:hover{color:var(--text);}
   .dh-section{margin-bottom:24px;}
-  .dh-section h4{font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin:0 0 12px;}
+  .dh-section h4{
+    font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:#fff;
+    margin:0 0 12px; background:var(--accent); padding:8px 12px; border-radius:6px;
+  }
   .dh-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px;}
   .dh-card{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
   .dh-card .n{font-size:20px; font-weight:600;}
   .dh-card .l{font-size:11px; color:var(--muted); margin-top:2px;}
+  .dh-card.tempo-total{background:rgba(47,92,158,.13); border-color:rgba(47,92,158,.3);}
+  .dh-card.tempo-total .n{color:var(--accent);}
+  .dh-card.tempo-produtivo{background:rgba(28,138,82,.13); border-color:rgba(28,138,82,.3);}
+  .dh-card.tempo-produtivo .n{color:var(--ok);}
+  .dh-card.tempo-neutro{background:rgba(165,105,10,.13); border-color:rgba(165,105,10,.3);}
+  .dh-card.tempo-neutro .n{color:var(--warn);}
+  .dh-card.tempo-improdutivo{background:rgba(178,58,53,.13); border-color:rgba(178,58,53,.3);}
+  .dh-card.tempo-improdutivo .n{color:var(--danger);}
+  [data-theme="dark"] .dh-card.tempo-total{background:rgba(91,155,253,.15);}
+  [data-theme="dark"] .dh-card.tempo-produtivo{background:rgba(47,191,113,.15);}
+  [data-theme="dark"] .dh-card.tempo-neutro{background:rgba(232,179,57,.15);}
+  [data-theme="dark"] .dh-card.tempo-improdutivo{background:rgba(224,80,90,.15);}
   .dh-prod-bar{height:10px; border-radius:6px; background:var(--border); overflow:hidden; margin-top:8px;}
   .dh-prod-bar .fill{height:100%; background:var(--ok);}
   .dh-table{width:100%; border-collapse:collapse; font-size:13px;}
   .dh-table th{text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--border);}
   .dh-table td{padding:6px 8px; border-bottom:1px solid var(--border);}
   .dh-table tr:last-child td{border-bottom:none;}
+  .dh-table td.destaque-baixo{color:var(--danger); font-weight:700; background:rgba(178,58,53,.08);}
   .dh-destaques{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; font-size:13px;}
   .dh-destaques .item{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px;}
   .dh-destaques .item .l{color:var(--muted); font-size:11px; margin-bottom:4px;}
@@ -552,13 +574,23 @@ function montarComparativo(row, neo){
   const wmMin = intervalParaMin(row.workmonitor_total) ?? (neo ? intervalParaMin(neo.total) : null);
   const gclickMin = intervalParaMin(row.total_gclick);
 
-  const linha = (label, min) => `
+  const diff = (a, b) => (a === null || a === undefined || b === null || b === undefined) ? null : a - b;
+  const linhaDiff = (label, min) => `
     <tr>
       <td>${label}</td>
-      <td>${min === null || min === undefined ? '<span class="muted">—</span>' : minParaHm(min, false)}</td>
+      <td>${min === null || min === undefined ? '<span class="muted">sem dado suficiente</span>' : minParaHm(min, false)}</td>
     </tr>`;
 
-  const diff = (a, b) => (a === null || a === undefined || b === null || b === undefined) ? null : a - b;
+  // % sobre o Ponto -- Tangerino é sempre a base (100%); abaixo de 85% (o
+  // mesmo limiar do "LM" usado na classificação principal) fica destacado
+  // em vermelho, igual à célula 77,16% que aparece em vermelho na planilha.
+  const pctSobrePonto = (min) => (min === null || min === undefined || !tangerinoMin) ? null : (min / tangerinoMin) * 100;
+  const fmtPct = (p) => p === null ? '<span class="muted">—</span>' : `${p.toFixed(2).replace('.', ',')}%`;
+  const classePct = (p) => (p !== null && p < 85) ? ' class="destaque-baixo"' : '';
+
+  const pctTangerino = pctSobrePonto(tangerinoMin);
+  const pctWm = pctSobrePonto(wmMin);
+  const pctGclick = pctSobrePonto(gclickMin);
 
   const diffs = [
     ['WorkMonitor vs. Tangerino', diff(wmMin, tangerinoMin)],
@@ -568,17 +600,17 @@ function montarComparativo(row, neo){
 
   return `
     <table class="dh-table">
-      <thead><tr><th>Fonte</th><th>Total do dia</th></tr></thead>
+      <thead><tr><th>Fonte</th><th>Total do dia</th><th>% sobre o Ponto</th></tr></thead>
       <tbody>
-        ${linha('Ponto (Tangerino)', tangerinoMin)}
-        ${linha('WorkMonitor', wmMin)}
-        ${linha('G-Click', gclickMin)}
+        <tr><td>Ponto (Tangerino)</td><td>${tangerinoMin == null ? '<span class="muted">—</span>' : minParaHm(tangerinoMin, false)}</td><td${classePct(pctTangerino)}>${fmtPct(pctTangerino)}</td></tr>
+        <tr><td>WorkMonitor</td><td>${wmMin == null ? '<span class="muted">—</span>' : minParaHm(wmMin, false)}</td><td${classePct(pctWm)}>${fmtPct(pctWm)}</td></tr>
+        <tr><td>G-Click</td><td>${gclickMin == null ? '<span class="muted">—</span>' : minParaHm(gclickMin, false)}</td><td${classePct(pctGclick)}>${fmtPct(pctGclick)}</td></tr>
       </tbody>
     </table>
     <table class="dh-table" style="margin-top:10px;">
       <thead><tr><th>Diferença</th><th></th></tr></thead>
       <tbody>
-        ${diffs.map(([label, v]) => linha(label, v).replace('<span class="muted">—</span>', '<span class="muted">sem dado suficiente</span>')).join('')}
+        ${diffs.map(([label, v]) => linhaDiff(label, v)).join('')}
       </tbody>
     </table>`;
 }
@@ -595,7 +627,7 @@ function renderTopApps(apps){
             <td>${escapeHtml(a.aplicativo || '')}</td>
             <td>${a.tempo_min != null ? minParaHm(a.tempo_min, false) : '<span class="muted">—</span>'}</td>
             <td>${a.pct_tempo != null ? a.pct_tempo.toFixed(1).replace('.', ',') + '%' : '<span class="muted">—</span>'}</td>
-            <td>${a.produtividade ? escapeHtml(a.produtividade) : '<span class="muted">—</span>'}</td>
+            <td>${a.produtividade ? `<span class="badge ${escapeHtml(a.produtividade)}">${escapeHtml(a.produtividade)}</span>` : '<span class="muted">—</span>'}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -684,10 +716,10 @@ async function abrirDetalhe(row){
       <div class="dh-section">
         <h4>Tempo</h4>
         <div class="dh-cards">
-          <div class="dh-card"><div class="n">${totalMin != null ? minParaHm(totalMin, false) : '—'}</div><div class="l">Tempo total</div></div>
-          <div class="dh-card"><div class="n">${produtivoMin != null ? minParaHm(produtivoMin, false) : '—'}</div><div class="l">Tempo produtivo</div></div>
-          <div class="dh-card"><div class="n">${neutroMin != null ? minParaHm(neutroMin, false) : '—'}</div><div class="l">Tempo neutro</div></div>
-          <div class="dh-card"><div class="n">${improdutivoMin != null ? minParaHm(improdutivoMin, false) : '—'}</div><div class="l">Tempo improdutivo</div></div>
+          <div class="dh-card tempo-total"><div class="n">${totalMin != null ? minParaHm(totalMin, false) : '—'}</div><div class="l">Tempo total</div></div>
+          <div class="dh-card tempo-produtivo"><div class="n">${produtivoMin != null ? minParaHm(produtivoMin, false) : '—'}</div><div class="l">Tempo produtivo</div></div>
+          <div class="dh-card tempo-neutro"><div class="n">${neutroMin != null ? minParaHm(neutroMin, false) : '—'}</div><div class="l">Tempo neutro</div></div>
+          <div class="dh-card tempo-improdutivo"><div class="n">${improdutivoMin != null ? minParaHm(improdutivoMin, false) : '—'}</div><div class="l">Tempo improdutivo</div></div>
         </div>
       </div>
 
@@ -727,8 +759,7 @@ async function abrirDetalhe(row){
       <div class="dh-section">
         <h4>Destaques do dia</h4>
         <div class="dh-destaques">
-          <div class="item"><div class="l">Aplicativo mais usado</div>${fmt(metricas.app_mais_usado ? escapeHtml(metricas.app_mais_usado) : null)}${metricas.app_mais_usado_tempo_txt ? ` — ${escapeHtml(String(metricas.app_mais_usado_tempo_txt))}` : ''}</div>
-          <div class="item"><div class="l">Trocas p/ esse app</div>${fmt(metricas.app_mais_usado_trocas)}</div>
+          <div class="item"><div class="l">Aplicativo mais usado</div>${fmt(metricas.app_mais_usado ? escapeHtml(metricas.app_mais_usado) : null)}</div>
           <div class="item"><div class="l">Horário inicial</div>${fmt(metricas.horario_inicial_destaque ? escapeHtml(String(metricas.horario_inicial_destaque)) : null)}</div>
           <div class="item"><div class="l">Horário final</div>${fmt(metricas.horario_final_destaque ? escapeHtml(String(metricas.horario_final_destaque)) : null)}</div>
           <div class="item"><div class="l">Maior atividade contínua</div>${fmt(metricas.maior_atividade_continua ? escapeHtml(String(metricas.maior_atividade_continua)) : null)}</div>
