@@ -212,6 +212,11 @@
   <div class="filters">
     <input id="f-busca" type="text" placeholder="Buscar colaborador...">
     <select id="f-gestor"><option value="">Todos os gestores</option></select>
+    <select id="f-dados">
+      <option value="">Todos</option>
+      <option value="com">Com dados no dia</option>
+      <option value="sem">Sem dados no dia</option>
+    </select>
   </div>
 
   <div class="table-wrap">
@@ -441,13 +446,26 @@ function renderTable(rows){
   });
 }
 
+// "Tem dados no dia" = pelo menos uma das 3 fontes (G-Click, Tangerino,
+// WorkMonitor) tem algum tempo registrado nesse dia -- usado no filtro
+// "Com dados / Sem dados" pra achar rápido quem ficou sem nenhum lançamento.
+function temDadosNoDia(r){
+  const gclick = intervalParaMin(r.total_gclick) || 0;
+  const tangerino = intervalParaMin(r.horas_trabalhadas) || 0;
+  const wm = intervalParaMin(r.workmonitor_total) || 0;
+  return gclick > 0 || tangerino > 0 || wm > 0;
+}
+
 function applyFilters(){
   const busca = document.getElementById('f-busca').value.toLowerCase().trim();
   const gestor = document.getElementById('f-gestor').value;
+  const dados = document.getElementById('f-dados').value;
 
   let rows = rowsDoDia;
   if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
   if(gestor) rows = rows.filter(r => r.supervisor === gestor);
+  if(dados === 'com') rows = rows.filter(r => temDadosNoDia(r));
+  if(dados === 'sem') rows = rows.filter(r => !temDadosNoDia(r));
 
   renderTable(rows);
 }
@@ -1081,6 +1099,7 @@ document.getElementById('gerenciar-btn').addEventListener('click', abrirGerencia
 document.getElementById('refresh-btn').addEventListener('click', load);
 document.getElementById('f-busca').addEventListener('input', applyFilters);
 document.getElementById('f-gestor').addEventListener('change', applyFilters);
+document.getElementById('f-dados').addEventListener('change', applyFilters);
 document.getElementById('f-data').addEventListener('change', atualizarPeriodo);
 
 load();
