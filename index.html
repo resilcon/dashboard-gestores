@@ -170,12 +170,12 @@
   .ger-section{margin-bottom:18px;}
   .ger-section h4{font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin:0 0 10px;}
   .ger-add-form{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;}
-  .ger-add-form input{flex:1; min-width:140px;}
+  .ger-add-form input, .ger-add-form select{flex:1; min-width:140px;}
   .ger-list{max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:10px;}
   .ger-row{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
   .ger-row:last-child{border-bottom:none;}
   .ger-row .ger-nome{flex:1; font-size:13px; font-weight:600; min-width:140px;}
-  .ger-row input.ger-sup{width:170px;}
+  .ger-row select.ger-sup{width:170px;}
   .ger-row button{font-size:12px; padding:6px 10px;}
   .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
@@ -714,13 +714,18 @@ async function abrirDetalhe(row){
       </div>
 
       <div class="dh-section">
-        <h4>Tempo</h4>
+        <h4>Tempo (WorkMonitor)</h4>
         <div class="dh-cards">
           <div class="dh-card tempo-total"><div class="n">${totalMin != null ? minParaHm(totalMin, false) : '—'}</div><div class="l">Tempo total</div></div>
           <div class="dh-card tempo-produtivo"><div class="n">${produtivoMin != null ? minParaHm(produtivoMin, false) : '—'}</div><div class="l">Tempo produtivo</div></div>
           <div class="dh-card tempo-neutro"><div class="n">${neutroMin != null ? minParaHm(neutroMin, false) : '—'}</div><div class="l">Tempo neutro</div></div>
           <div class="dh-card tempo-improdutivo"><div class="n">${improdutivoMin != null ? minParaHm(improdutivoMin, false) : '—'}</div><div class="l">Tempo improdutivo</div></div>
         </div>
+      </div>
+
+      <div class="dh-section">
+        <h4>Comparativo Ponto x WorkMonitor x G-Click</h4>
+        ${montarComparativo(row, neo)}
       </div>
 
       <div class="dh-section">
@@ -796,17 +801,35 @@ document.getElementById('detalhe-overlay').addEventListener('click', (e) => {
 // linha nem o histórico associado a ela em ponto_diario/neocode_diario/etc.)
 // ------------------------------------------------------------
 let gerenciarColabs = [];
+let gerenciarGestores = [];
 let mostrarInativos = false;
+let mostrarGestoresInativos = false;
 
 async function carregarGerenciar(){
-  gerenciarColabs = await sbGet('colaboradores', {select:'id,nome,supervisor,status', order:'nome.asc'});
+  [gerenciarColabs, gerenciarGestores] = await Promise.all([
+    sbGet('colaboradores', {select:'id,nome,supervisor,status', order:'nome.asc'}),
+    sbGet('gestores', {select:'id,nome,status', order:'nome.asc'}),
+  ]);
   renderGerenciar();
+}
+
+function gestorOptionsHtml(selecionado){
+  const ativos = gerenciarGestores.filter(g => g.status === 'ativo');
+  const nomes = ativos.map(g => g.nome);
+  // se o gestor atual do colaborador não estiver (mais) na lista de gestores ativos,
+  // mantém ele como opção pra não perder/sobrescrever o dado sem querer
+  const extra = (selecionado && !nomes.includes(selecionado)) ? [selecionado] : [];
+  const todasOpcoes = [...extra, ...nomes];
+  return `<option value=""${!selecionado ? ' selected' : ''}>— sem gestor —</option>` +
+    todasOpcoes.map(n => `<option value="${escapeHtml(n)}"${n === selecionado ? ' selected' : ''}>${escapeHtml(n)}</option>`).join('');
 }
 
 function renderGerenciar(){
   const body = document.getElementById('gerenciar-body');
   const ativos = gerenciarColabs.filter(c => c.status === 'ativo');
   const inativos = gerenciarColabs.filter(c => c.status !== 'ativo');
+  const gestoresAtivos = gerenciarGestores.filter(g => g.status === 'ativo');
+  const gestoresInativos = gerenciarGestores.filter(g => g.status !== 'ativo');
   body.innerHTML = `
     <div class="dh-header">
       <div>
@@ -817,10 +840,36 @@ function renderGerenciar(){
     </div>
 
     <div class="ger-section">
+      <h4>Gestores</h4>
+      <div class="dh-meta" style="margin-bottom:8px;">A lista de gestores é fixa — cadastre aqui pra que eles apareçam no menu suspenso ao editar um colaborador.</div>
+      <div class="ger-add-form">
+        <input id="ger-novo-gestor-nome" type="text" placeholder="Nome do gestor">
+        <button id="ger-add-gestor-btn">Adicionar gestor</button>
+      </div>
+      <div class="modal-error" id="ger-add-gestor-error"></div>
+      <div class="ger-list" style="margin-top:8px;">
+        ${gestoresAtivos.length ? gestoresAtivos.map(g => `
+          <div class="ger-row" data-gestor-id="${g.id}">
+            <div class="ger-nome">${escapeHtml(g.nome)}</div>
+            <button class="ger-gestor-remove">Remover</button>
+          </div>`).join('') : '<div class="dh-empty">Nenhum gestor cadastrado.</div>'}
+      </div>
+      <button class="ger-toggle-link" id="ger-toggle-gestores-inativos" style="margin-top:8px;">${mostrarGestoresInativos ? 'Ocultar' : 'Mostrar'} gestores removidos (${gestoresInativos.length})</button>
+      ${mostrarGestoresInativos ? `
+        <div class="ger-list" style="margin-top:10px;">
+          ${gestoresInativos.length ? gestoresInativos.map(g => `
+            <div class="ger-row" data-gestor-id="${g.id}">
+              <div class="ger-nome">${escapeHtml(g.nome)} <span class="muted">(removido)</span></div>
+              <button class="ger-gestor-reativar">Reativar</button>
+            </div>`).join('') : '<div class="dh-empty">Nenhum gestor removido.</div>'}
+        </div>` : ''}
+    </div>
+
+    <div class="ger-section">
       <h4>Adicionar colaborador</h4>
       <div class="ger-add-form">
         <input id="ger-novo-nome" type="text" placeholder="Nome do colaborador">
-        <input id="ger-novo-sup" type="text" placeholder="Gestor">
+        <select id="ger-novo-sup">${gestorOptionsHtml('')}</select>
         <button id="ger-add-btn">Adicionar</button>
       </div>
       <div class="modal-error" id="ger-add-error"></div>
@@ -832,7 +881,7 @@ function renderGerenciar(){
         ${ativos.length ? ativos.map(c => `
           <div class="ger-row" data-id="${c.id}">
             <div class="ger-nome">${escapeHtml(c.nome)}</div>
-            <input class="ger-sup" type="text" value="${escapeHtml(c.supervisor || '')}" placeholder="Gestor">
+            <select class="ger-sup">${gestorOptionsHtml(c.supervisor || '')}</select>
             <button class="ger-save">Salvar</button>
             <button class="ger-remove">Remover</button>
           </div>`).join('') : '<div class="dh-empty">Nenhum colaborador ativo.</div>'}
@@ -854,9 +903,46 @@ function renderGerenciar(){
 
   document.getElementById('ger-close').addEventListener('click', fecharGerenciar);
   document.getElementById('ger-add-btn').addEventListener('click', onAdicionarColaborador);
+  document.getElementById('ger-add-gestor-btn').addEventListener('click', onAdicionarGestor);
   document.getElementById('ger-toggle-inativos').addEventListener('click', () => {
     mostrarInativos = !mostrarInativos;
     renderGerenciar();
+  });
+  document.getElementById('ger-toggle-gestores-inativos').addEventListener('click', () => {
+    mostrarGestoresInativos = !mostrarGestoresInativos;
+    renderGerenciar();
+  });
+
+  body.querySelectorAll('.ger-gestor-remove').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.gestorId;
+      const nome = row.querySelector('.ger-nome').textContent;
+      if(!confirm(`Remover o gestor ${nome}? Ele deixa de aparecer no menu suspenso, mas colaboradores já vinculados a ele não mudam (dá pra reativar depois).`)) return;
+      btn.disabled = true; btn.textContent = 'Removendo...';
+      try{
+        await sbWrite('gestores', 'PATCH', {status:'inativo'}, {id:`eq.${id}`});
+        await carregarGerenciar();
+      }catch(err){
+        alert(`Não foi possível remover: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Remover';
+      }
+    });
+  });
+
+  body.querySelectorAll('.ger-gestor-reativar').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.gestorId;
+      btn.disabled = true; btn.textContent = 'Reativando...';
+      try{
+        await sbWrite('gestores', 'PATCH', {status:'ativo'}, {id:`eq.${id}`});
+        await carregarGerenciar();
+      }catch(err){
+        alert(`Não foi possível reativar: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Reativar';
+      }
+    });
   });
 
   body.querySelectorAll('.ger-save').forEach(btn => {
@@ -939,6 +1025,34 @@ async function onAdicionarColaborador(){
     errorEl.style.display = 'block';
   }finally{
     btn.disabled = false; btn.textContent = 'Adicionar';
+  }
+}
+
+async function onAdicionarGestor(){
+  const nomeEl = document.getElementById('ger-novo-gestor-nome');
+  const errorEl = document.getElementById('ger-add-gestor-error');
+  errorEl.style.display = 'none';
+  const nome = nomeEl.value.trim();
+  if(!nome){
+    errorEl.textContent = 'Digite o nome do gestor.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('ger-add-gestor-btn');
+  btn.disabled = true; btn.textContent = 'Adicionando...';
+  try{
+    // upsert por nome: se já existir (até um removido), reativa
+    await sbWrite('gestores', 'POST',
+      {nome, status: 'ativo'},
+      {on_conflict: 'nome'},
+      'resolution=merge-duplicates,return=minimal');
+    nomeEl.value = '';
+    await carregarGerenciar();
+  }catch(err){
+    errorEl.textContent = `Não foi possível adicionar: ${err.message}`;
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Adicionar gestor';
   }
 }
 
