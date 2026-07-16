@@ -6,9 +6,14 @@
 <title>Dashboard Gestores</title>
 <style>
   :root{
+    --bg:#f4f6fa; --panel:#ffffff; --panel-2:#eef1f7; --border:#dde3ed;
+    --text:#1c2433; --muted:#67728a; --accent:#2f5c9e; --warn:#a5690a;
+    --ok:#1c8a52; --danger:#b23a35; --shadow:0 1px 2px rgba(20,30,50,.06);
+  }
+  [data-theme="dark"]{
     --bg:#0f1420; --panel:#161d2b; --panel-2:#1d2536; --border:#2a3346;
-    --text:#e7ebf3; --muted:#8b96ab; --accent:#3d8bfd; --warn:#e8b339;
-    --ok:#2fbf71; --danger:#e0505a;
+    --text:#e7ebf3; --muted:#8b96ab; --accent:#5b9bfd; --warn:#e8b339;
+    --ok:#2fbf71; --danger:#e0505a; --shadow:none;
   }
   *{box-sizing:border-box;}
   body{
@@ -16,10 +21,10 @@
     background:var(--bg); color:var(--text);
   }
   header{
-    padding:24px 32px; border-bottom:1px solid var(--border);
-    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+    padding:20px 32px; border-bottom:1px solid var(--border); background:var(--panel);
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;
   }
-  header h1{margin:0; font-size:20px;}
+  header h1{margin:0; font-size:19px;}
   header p{margin:4px 0 0; color:var(--muted); font-size:13px;}
   #status-pill{font-size:12px; color:var(--muted);}
   button{
@@ -27,10 +32,22 @@
     padding:8px 14px; border-radius:8px; cursor:pointer; font-size:13px;
   }
   button:hover{background:var(--border);}
-  main{padding:24px 32px; max-width:1300px; margin:0 auto;}
+  .icon-btn{padding:8px 12px;}
+  main{padding:24px 32px; max-width:1200px; margin:0 auto;}
 
-  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:24px;}
-  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; border-left:4px solid var(--accent);}
+  .period-bar{
+    display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:14px 18px; margin-bottom:20px; box-shadow:var(--shadow); flex-wrap:wrap;
+  }
+  .period-bar label{font-size:13px; color:var(--muted); font-weight:600;}
+  .period-bar input[type=date]{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    padding:8px 12px; border-radius:8px; font-size:14px;
+  }
+  .period-bar .period-label{font-size:13px; color:var(--muted); margin-left:auto;}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:22px;}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; border-left:4px solid var(--accent); box-shadow:var(--shadow);}
   .card .n{font-size:26px; font-weight:600;}
   .card .l{font-size:12px; color:var(--muted); margin-top:4px;}
   .card.warn{border-left-color:var(--warn);}
@@ -39,20 +56,24 @@
   .card.accent{border-left-color:var(--accent);}
 
   .badge{padding:3px 9px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block;}
-  .badge.OK{background:rgba(47,191,113,.15); color:var(--ok);}
-  .badge.ABAIXODOLM{background:rgba(232,179,57,.15); color:var(--warn);}
-  .badge.ACIMADAJORNADA{background:rgba(61,139,253,.15); color:var(--accent);}
-  .badge.SEMLANCAMENTO{background:rgba(224,80,90,.15); color:var(--danger);}
+  .badge.OK{background:rgba(28,138,82,.13); color:var(--ok);}
+  .badge.ABAIXODOLM{background:rgba(165,105,10,.13); color:var(--warn);}
+  .badge.ACIMADAJORNADA{background:rgba(47,92,158,.13); color:var(--accent);}
+  .badge.SEMLANCAMENTO{background:rgba(178,58,53,.13); color:var(--danger);}
+  [data-theme="dark"] .badge.OK{background:rgba(47,191,113,.15);}
+  [data-theme="dark"] .badge.ABAIXODOLM{background:rgba(232,179,57,.15);}
+  [data-theme="dark"] .badge.ACIMADAJORNADA{background:rgba(61,139,253,.15);}
+  [data-theme="dark"] .badge.SEMLANCAMENTO{background:rgba(224,80,90,.15);}
 
   .filters{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;}
   .filters input, .filters select{
     background:var(--panel); color:var(--text); border:1px solid var(--border);
     padding:9px 12px; border-radius:8px; font-size:13px;
   }
-  .filters input{flex:1; min-width:180px;}
+  .filters input{flex:1; min-width:200px;}
 
-  .table-wrap{overflow-x:auto; border-radius:12px; border:1px solid var(--border);}
-  table{width:100%; border-collapse:collapse; background:var(--panel); min-width:960px;}
+  .table-wrap{overflow-x:auto; border-radius:12px; border:1px solid var(--border); box-shadow:var(--shadow);}
+  table{width:100%; border-collapse:collapse; background:var(--panel); min-width:760px;}
   thead th{
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em;
     color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--border); white-space:nowrap;
@@ -60,6 +81,8 @@
   tbody td{padding:12px 14px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; white-space:nowrap;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:var(--panel-2);}
+  .colab-link{background:none; border:none; padding:0; color:var(--accent); font-weight:600; font-size:13px; cursor:pointer; text-align:left; font-family:inherit;}
+  .colab-link:hover{text-decoration:underline;}
 
   .muted{color:var(--muted);}
   .empty{text-align:center; padding:40px; color:var(--muted); white-space:normal;}
@@ -67,8 +90,8 @@
   .demo-banner, .info-banner{
     padding:10px 16px; border-radius:8px; font-size:13px; margin-bottom:18px; border:1px solid;
   }
-  .demo-banner{background:rgba(232,179,57,.12); border-color:var(--warn); color:var(--warn);}
-  .info-banner{background:rgba(61,139,253,.12); border-color:var(--accent); color:var(--accent);}
+  .demo-banner{background:rgba(165,105,10,.10); border-color:var(--warn); color:var(--warn);}
+  .info-banner{background:rgba(47,92,158,.10); border-color:var(--accent); color:var(--accent);}
 
   .justify-btn{
     background:none; border:1px solid var(--border); color:var(--muted);
@@ -79,8 +102,8 @@
   .justificativa-meta{font-size:11px; color:var(--muted); display:block; margin-top:2px;}
 
   .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
-    align-items:center; justify-content:center; z-index:50;
+    display:none; position:fixed; inset:0; background:rgba(10,14,24,.55);
+    align-items:flex-start; justify-content:center; z-index:50; overflow-y:auto; padding:40px 16px;
   }
   .modal-overlay.open{display:flex;}
   .modal{
@@ -98,6 +121,37 @@
   .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:18px;}
   .modal-actions button.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
   .modal-error{color:var(--danger); font-size:12px; margin-top:8px; display:none;}
+
+  /* Modal de detalhe do colaborador */
+  .detalhe-modal{max-width:900px;}
+  .detalhe-modal .dh-header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px;}
+  .detalhe-modal .dh-header h3{font-size:18px; margin:0;}
+  .detalhe-modal .dh-header .dh-meta{color:var(--muted); font-size:13px; margin-top:4px;}
+  .dh-close{border:none; background:none; color:var(--muted); font-size:22px; cursor:pointer; line-height:1; padding:0 4px;}
+  .dh-close:hover{color:var(--text);}
+  .dh-section{margin-bottom:24px;}
+  .dh-section h4{font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin:0 0 12px;}
+  .dh-cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px;}
+  .dh-card{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:12px 14px;}
+  .dh-card .n{font-size:20px; font-weight:600;}
+  .dh-card .l{font-size:11px; color:var(--muted); margin-top:2px;}
+  .dh-prod-bar{height:10px; border-radius:6px; background:var(--border); overflow:hidden; margin-top:8px;}
+  .dh-prod-bar .fill{height:100%; background:var(--ok);}
+  .dh-table{width:100%; border-collapse:collapse; font-size:13px;}
+  .dh-table th{text-align:left; color:var(--muted); font-size:11px; text-transform:uppercase; padding:6px 8px; border-bottom:1px solid var(--border);}
+  .dh-table td{padding:6px 8px; border-bottom:1px solid var(--border);}
+  .dh-table tr:last-child td{border-bottom:none;}
+  .dh-destaques{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; font-size:13px;}
+  .dh-destaques .item{background:var(--panel-2); border:1px solid var(--border); border-radius:10px; padding:10px 12px;}
+  .dh-destaques .item .l{color:var(--muted); font-size:11px; margin-bottom:4px;}
+  .bar-row{display:grid; grid-template-columns:140px 1fr 70px; align-items:center; gap:10px; font-size:12px; margin-bottom:8px;}
+  .bar-row .lbl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bar-track{height:14px; background:var(--panel-2); border-radius:6px; overflow:hidden; border:1px solid var(--border);}
+  .bar-fill{height:100%; background:var(--accent); border-radius:6px 0 0 6px;}
+  .bar-fill.produtivo{background:var(--ok);}
+  .bar-fill.neutro{background:var(--warn);}
+  .bar-fill.improdutivo{background:var(--danger);}
+  .dh-empty{color:var(--muted); font-size:13px; padding:12px 0;}
 </style>
 </head>
 <body>
@@ -105,10 +159,11 @@
 <header>
   <div>
     <h1>Dashboard Gestores</h1>
-    <p>Neocode, GClick e ponto eletrônico — visão consolidada por colaborador/dia</p>
+    <p>Tangerino, WorkMonitor e G-Click — visão consolidada por colaborador</p>
   </div>
   <div style="display:flex; align-items:center; gap:12px;">
     <span id="status-pill">—</span>
+    <button id="theme-toggle" class="icon-btn">Modo escuro</button>
     <button id="refresh-btn">Atualizar</button>
   </div>
 </header>
@@ -118,23 +173,20 @@
     Exibindo dados de demonstração. Configure SUPABASE_URL e SUPABASE_ANON_KEY em index.html para conectar aos dados reais.
   </div>
   <div id="empty-db-banner" class="info-banner" style="display:none;">
-    Conectado ao Supabase, mas as tabelas ainda estão vazias — nenhum dado foi carregado pelos webhooks ainda.
+    Nenhum registro encontrado para o dia selecionado.
+  </div>
+
+  <div class="period-bar">
+    <label for="f-data">Período</label>
+    <input id="f-data" type="date">
+    <span class="period-label" id="period-label"></span>
   </div>
 
   <div class="cards" id="cards"></div>
 
   <div class="filters">
     <input id="f-busca" type="text" placeholder="Buscar colaborador...">
-    <select id="f-departamento"><option value="">Todos os departamentos</option></select>
-    <select id="f-supervisor"><option value="">Todos os supervisores</option></select>
-    <select id="f-classificacao">
-      <option value="">Todas as classificações</option>
-      <option value="OK">OK</option>
-      <option value="ABAIXO DO LM">Abaixo do LM</option>
-      <option value="ACIMA DA JORNADA">Acima da jornada</option>
-      <option value="SEM LANCAMENTO">Sem lançamento</option>
-    </select>
-    <input id="f-data" type="date">
+    <select id="f-gestor"><option value="">Todos os gestores</option></select>
   </div>
 
   <div class="table-wrap">
@@ -142,24 +194,17 @@
       <thead>
         <tr>
           <th>Colaborador</th>
-          <th>Departamento</th>
-          <th>Supervisor</th>
-          <th>Data</th>
+          <th>Gestor</th>
+          <th>Total GCLICK</th>
+          <th>Horas Tangerino</th>
+          <th>Work Monitor</th>
           <th>Classificação</th>
-          <th>Horas trabalhadas</th>
-          <th>Jornada / LM</th>
-          <th>Produtivo</th>
-          <th>Distração</th>
-          <th>Ausências</th>
-          <th>Início</th>
-          <th>Fim</th>
-          <th>Total GClick</th>
           <th>Justificativa</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="15" class="empty">Carregando...</td></tr>
+        <tr><td colspan="8" class="empty">Carregando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -183,30 +228,68 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="detalhe-overlay">
+  <div class="modal detalhe-modal" id="detalhe-body">
+    <!-- preenchido via JS -->
+  </div>
+</div>
+
 <script>
 // ============================================================
 // CONFIGURAÇÃO — projeto Supabase "resilcon-relatorios" (aumfhrqrnudmprvmvesb)
-// Fonte: view public.vw_resumo_diario (já existe em produção, schema public)
+// Fonte principal: view public.vw_resumo_diario
+// Fonte do modal de detalhe: neocode_diario + apps_uso_diario (por colaborador/dia)
 // ============================================================
 const SUPABASE_URL = "https://aumfhrqrnudmprvmvesb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bDvvjpuVzD54iAlAHXMhmw_asJ0XMKF";
-const VIEW = "vw_resumo_diario"; // schema public (padrão, não precisa expor schema extra)
+const VIEW = "vw_resumo_diario";
 const JUSTIFICATIVAS_TABLE = "justificativas_diarias";
 
 const isConfigured = !SUPABASE_URL.startsWith("COLE_AQUI") && !SUPABASE_ANON_KEY.startsWith("COLE_AQUI");
 
 const DEMO_DATA = [
-  {colaborador_id:"1", nome:"Ana Souza", departamento:"Fiscal", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"08:12:00", produtivo:"06:50:00", distracao:"00:40:00", ausencias:"00:00:00", resultado:"06:10:00", inicio:"08:02:00", fim:"17:10:00", total_gclick:"05:30:00", jornada_esperada:"09:00:00", lm_esperado:"07:39:00", classificacao:"OK"},
-  {colaborador_id:"2", nome:"Bruno Lima", departamento:"Contábil", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"06:55:00", produtivo:"05:10:00", distracao:"01:20:00", ausencias:"00:30:00", resultado:"03:50:00", inicio:"08:15:00", fim:"16:50:00", total_gclick:"03:10:00", jornada_esperada:"09:00:00", lm_esperado:"07:39:00", classificacao:"ABAIXO DO LM", ultima_justificativa:"Consulta médica agendada, já validado com o colaborador.", ultima_justificativa_gestor:"Marcos", ultima_justificativa_em:"2026-07-15T18:20:00Z"},
-  {colaborador_id:"3", nome:"Carla Mendes", departamento:"Pessoal", supervisor:"Diego", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"10:24:00", produtivo:"08:40:00", distracao:"00:15:00", ausencias:"00:00:00", resultado:"08:25:00", inicio:"07:50:00", fim:"19:00:00", total_gclick:"07:45:00", jornada_esperada:"09:00:00", lm_esperado:"07:39:00", classificacao:"ACIMA DA JORNADA"},
-  {colaborador_id:"4", nome:"Diego Alves", departamento:"Fiscal", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:null, produtivo:null, distracao:null, ausencias:null, resultado:null, inicio:null, fim:null, total_gclick:"00:00:00", jornada_esperada:"09:00:00", lm_esperado:"07:39:00", classificacao:"SEM LANCAMENTO"},
-  {colaborador_id:"5", nome:"Elaine Rocha", departamento:"Contábil", supervisor:"Diego", status:"ativo", tipo_colaborador:"estagiario", data:"2026-07-15", horas_trabalhadas:"06:00:00", produtivo:"05:30:00", distracao:"00:20:00", ausencias:"00:00:00", resultado:"05:10:00", inicio:"08:00:00", fim:"14:00:00", total_gclick:"04:50:00", jornada_esperada:"06:00:00", lm_esperado:"05:06:00", classificacao:"OK"},
+  {colaborador_id:"1", nome:"Ana Souza", departamento:"Fiscal", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"08:12:00", workmonitor_total:"07:40:00", total_gclick:"05:30:00", classificacao:"OK"},
+  {colaborador_id:"2", nome:"Bruno Lima", departamento:"Contábil", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"06:55:00", workmonitor_total:"06:10:00", total_gclick:"03:10:00", classificacao:"ABAIXO DO LM", ultima_justificativa:"Consulta médica agendada, já validado com o colaborador.", ultima_justificativa_gestor:"Marcos", ultima_justificativa_em:"2026-07-15T18:20:00Z"},
+  {colaborador_id:"3", nome:"Carla Mendes", departamento:"Pessoal", supervisor:"Diego", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:"10:24:00", workmonitor_total:"09:05:00", total_gclick:"07:45:00", classificacao:"ACIMA DA JORNADA"},
+  {colaborador_id:"4", nome:"Diego Alves", departamento:"Fiscal", supervisor:"Marcos", status:"ativo", tipo_colaborador:"efetivo", data:"2026-07-15", horas_trabalhadas:null, workmonitor_total:null, total_gclick:"00:00:00", classificacao:"SEM LANCAMENTO"},
+  {colaborador_id:"5", nome:"Elaine Rocha", departamento:"Contábil", supervisor:"Diego", status:"ativo", tipo_colaborador:"estagiario", data:"2026-07-15", horas_trabalhadas:"06:00:00", workmonitor_total:"05:40:00", total_gclick:"04:50:00", classificacao:"OK"},
 ];
 
-let allRows = [];
+let allRows = [];       // todas as linhas carregadas (várias datas, últimos 500 registros)
+let rowsDoDia = [];     // linhas já filtradas pela data selecionada
 let currentFilteredRows = [];
 
 function setStatusPill(text){ document.getElementById('status-pill').textContent = text; }
+
+// ------------------------------------------------------------
+// Tema claro/escuro
+// ------------------------------------------------------------
+function aplicarTema(tema){
+  document.documentElement.setAttribute('data-theme', tema);
+  document.getElementById('theme-toggle').textContent = tema === 'dark' ? 'Modo claro' : 'Modo escuro';
+  localStorage.setItem('dashboard-theme', tema);
+}
+function alternarTema(){
+  const atual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  aplicarTema(atual === 'dark' ? 'light' : 'dark');
+}
+aplicarTema(localStorage.getItem('dashboard-theme') || 'light');
+document.getElementById('theme-toggle').addEventListener('click', alternarTema);
+
+// ------------------------------------------------------------
+// Fetch genérico (REST do PostgREST)
+// ------------------------------------------------------------
+async function sbGet(tabela, params){
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabela}?${qs}`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    }
+  });
+  if(!res.ok) throw new Error(`Erro ${res.status} ao consultar ${tabela}`);
+  return await res.json();
+}
 
 async function fetchData(){
   if(!isConfigured){
@@ -214,38 +297,49 @@ async function fetchData(){
     setStatusPill('Modo demonstração');
     return DEMO_DATA;
   }
-  const url = `${SUPABASE_URL}/rest/v1/${VIEW}?select=*&order=data.desc&limit=500`;
-  const res = await fetch(url, {
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
-    }
-  });
-  if(!res.ok){
-    throw new Error(`Erro ${res.status} ao consultar Supabase`);
-  }
-  return await res.json();
+  return await sbGet(VIEW, {select:'*', order:'data.desc', limit:'500'});
 }
 
+// ------------------------------------------------------------
+// Helpers de formatação
+// ------------------------------------------------------------
 // Interval do Postgres/PostgREST costuma vir como "HH:MM:SS" ou "N day(s) HH:MM:SS".
-// Convertemos para "Xh Ym" pra ficar legível; se não reconhecer o formato, mostra cru.
-function fmtInterval(v){
+function intervalParaMin(v){
   if(v === null || v === undefined || v === '') return null;
   const m = String(v).match(/^(?:(\d+)\s+days?\s+)?(-?\d{1,3}):(\d{2}):(\d{2})/);
-  if(!m) return v;
+  if(!m) return null;
   const days = parseInt(m[1] || '0', 10);
-  const hours = days * 24 + parseInt(m[2], 10);
-  const minutes = parseInt(m[3], 10);
-  return `${hours}h ${String(minutes).padStart(2,'0')}m`;
+  const horas = days * 24 + parseInt(m[2], 10);
+  const min = parseInt(m[3], 10);
+  const seg = parseInt(m[4] || '0', 10);
+  return horas * 60 + min + seg / 60;
 }
-
+function minParaHm(min, comSinal){
+  if(min === null || min === undefined || isNaN(min)) return null;
+  const sinal = min < 0 ? '-' : (comSinal ? '+' : '');
+  const abs = Math.round(Math.abs(min));
+  const h = Math.floor(abs / 60), m = abs % 60;
+  return `${sinal}${h}h ${String(m).padStart(2,'0')}m`;
+}
+function fmtInterval(v){
+  const min = intervalParaMin(v);
+  return min === null ? null : minParaHm(min, false);
+}
 function fmtTime(v){
   if(!v) return null;
   return String(v).slice(0,5);
 }
+function fmt(v){ return (v === null || v === undefined || v === '') ? '<span class="muted">—</span>' : v; }
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function badgeClass(classificacao){
+  return (classificacao || '').replace(/\s+/g, '');
+}
 
-function fmt(v){ return (v === null || v === undefined) ? '<span class="muted">—</span>' : v; }
-
+// ------------------------------------------------------------
+// Cards resumo
+// ------------------------------------------------------------
 function renderCards(rows){
   const count = (cls) => rows.filter(r => r.classificacao === cls).length;
   const cards = document.getElementById('cards');
@@ -260,17 +354,9 @@ function renderCards(rows){
 function populateSelect(id, rows, field){
   const select = document.getElementById(id);
   const atual = select.value;
-  const vals = [...new Set(rows.map(r => r[field]).filter(Boolean))].sort();
-  select.innerHTML = `<option value="">Todos</option>` + vals.map(v => `<option value="${v}">${v}</option>`).join('');
+  const vals = [...new Set(rows.map(r => r[field]).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+  select.innerHTML = `<option value="">Todos</option>` + vals.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
   select.value = atual;
-}
-
-function badgeClass(classificacao){
-  return (classificacao || '').replace(/\s+/g, '');
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function renderJustificativaCell(r){
@@ -280,35 +366,39 @@ function renderJustificativaCell(r){
   return `<span class="justificativa-txt">${escapeHtml(r.ultima_justificativa)}</span>${meta ? `<span class="justificativa-meta">${escapeHtml(meta)}</span>` : ''}`;
 }
 
+// ------------------------------------------------------------
+// Tabela principal (7 colunas, ordem alfabética por colaborador)
+// ------------------------------------------------------------
 function renderTable(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="15" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
     return;
   }
-  tbody.innerHTML = rows.map((r, i) => `
+  const ordenadas = [...rows].sort((a,b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  currentFilteredRows = ordenadas;
+  tbody.innerHTML = ordenadas.map((r, i) => `
     <tr>
-      <td><strong>${r.nome}</strong>${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
-      <td>${fmt(r.departamento)}</td>
-      <td>${fmt(r.supervisor)}</td>
-      <td>${fmt(r.data)}</td>
-      <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
-      <td>${fmt(fmtInterval(r.horas_trabalhadas))}</td>
-      <td>${fmt(fmtInterval(r.jornada_esperada))} / ${fmt(fmtInterval(r.lm_esperado))}</td>
-      <td>${fmt(fmtInterval(r.produtivo))}</td>
-      <td>${fmt(fmtInterval(r.distracao))}</td>
-      <td>${fmt(fmtInterval(r.ausencias))}</td>
-      <td>${fmt(fmtTime(r.inicio))}</td>
-      <td>${fmt(fmtTime(r.fim))}</td>
+      <td><button class="colab-link" data-idx="${i}">${escapeHtml(r.nome)}</button>${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
+      <td>${fmt(r.supervisor ? escapeHtml(r.supervisor) : null)}</td>
       <td>${fmt(fmtInterval(r.total_gclick))}</td>
+      <td>${fmt(fmtInterval(r.horas_trabalhadas))}</td>
+      <td>${fmt(fmtInterval(r.workmonitor_total))}</td>
+      <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
       <td>${renderJustificativaCell(r)}</td>
-      <td>${r.data ? `<button class="justify-btn" data-idx="${i}">Justificar</button>` : ''}</td>
+      <td>${r.data ? `<button class="justify-btn" data-jidx="${i}">Justificar</button>` : ''}</td>
     </tr>
   `).join('');
 
-  tbody.querySelectorAll('.justify-btn').forEach(btn => {
+  tbody.querySelectorAll('.colab-link').forEach(btn => {
     btn.addEventListener('click', () => {
       const r = currentFilteredRows[Number(btn.dataset.idx)];
+      abrirDetalhe(r);
+    });
+  });
+  tbody.querySelectorAll('.justify-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = currentFilteredRows[Number(btn.dataset.jidx)];
       openModal(r);
     });
   });
@@ -316,21 +406,24 @@ function renderTable(rows){
 
 function applyFilters(){
   const busca = document.getElementById('f-busca').value.toLowerCase().trim();
-  const dep = document.getElementById('f-departamento').value;
-  const sup = document.getElementById('f-supervisor').value;
-  const cls = document.getElementById('f-classificacao').value;
-  const data = document.getElementById('f-data').value;
+  const gestor = document.getElementById('f-gestor').value;
 
-  let rows = allRows;
-  if(busca) rows = rows.filter(r => r.nome.toLowerCase().includes(busca));
-  if(dep) rows = rows.filter(r => r.departamento === dep);
-  if(sup) rows = rows.filter(r => r.supervisor === sup);
-  if(cls) rows = rows.filter(r => r.classificacao === cls);
-  if(data) rows = rows.filter(r => r.data === data);
+  let rows = rowsDoDia;
+  if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
+  if(gestor) rows = rows.filter(r => r.supervisor === gestor);
 
-  currentFilteredRows = rows;
   renderCards(rows);
   renderTable(rows);
+}
+
+function atualizarPeriodo(){
+  const dataSel = document.getElementById('f-data').value;
+  rowsDoDia = dataSel ? allRows.filter(r => r.data === dataSel) : allRows.filter(r => r.data === (allRows[0] && allRows[0].data));
+  const label = document.getElementById('period-label');
+  label.textContent = rowsDoDia.length ? `${rowsDoDia.length} colaborador(es) no dia` : '';
+  document.getElementById('empty-db-banner').style.display = (isConfigured && rowsDoDia.length === 0) ? 'block' : 'none';
+  populateSelect('f-gestor', rowsDoDia, 'supervisor');
+  applyFilters();
 }
 
 async function load(){
@@ -338,17 +431,21 @@ async function load(){
   document.getElementById('empty-db-banner').style.display = 'none';
   try{
     allRows = await fetchData();
-    populateSelect('f-departamento', allRows, 'departamento');
-    populateSelect('f-supervisor', allRows, 'supervisor');
+    // datas mais recentes primeiro (já vem ordenado desc do backend); define
+    // o período padrão como o dia mais recente com dado, sem duplicar linhas
+    // por data no seletor.
+    const dataInput = document.getElementById('f-data');
+    if(!dataInput.value && allRows.length){
+      dataInput.value = allRows[0].data;
+    }
     if(isConfigured){
       setStatusPill(`Atualizado às ${new Date().toLocaleTimeString('pt-BR')}`);
-      if(allRows.length === 0) document.getElementById('empty-db-banner').style.display = 'block';
     }
-    applyFilters();
+    atualizarPeriodo();
   }catch(err){
     console.error(err);
     document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="15" class="empty">Erro ao carregar dados: ${err.message}</td></tr>`;
+      `<tr><td colspan="8" class="empty">Erro ao carregar dados: ${err.message}</td></tr>`;
     setStatusPill('Erro ao carregar');
   }
 }
@@ -366,12 +463,10 @@ function openModal(row){
   document.getElementById('modal-error').style.display = 'none';
   document.getElementById('modal-overlay').classList.add('open');
 }
-
 function closeModal(){
   document.getElementById('modal-overlay').classList.remove('open');
   modalTarget = null;
 }
-
 async function submitJustificativa(){
   const gestor = document.getElementById('modal-gestor').value.trim();
   const texto = document.getElementById('modal-texto').value.trim();
@@ -422,19 +517,238 @@ async function submitJustificativa(){
     submitBtn.textContent = 'Salvar';
   }
 }
-
 document.getElementById('modal-cancel').addEventListener('click', closeModal);
 document.getElementById('modal-submit').addEventListener('click', submitJustificativa);
 document.getElementById('modal-overlay').addEventListener('click', (e) => {
   if(e.target.id === 'modal-overlay') closeModal();
 });
 
+// ------------------------------------------------------------
+// Modal de detalhe do colaborador — réplica do Relatório Diário
+// (aba "Dashboard" do WorkMonitor). Busca dados extras direto no
+// Supabase (neocode_diario + apps_uso_diario) na hora do clique.
+// ------------------------------------------------------------
+function pct(min, total){
+  if(!total || min === null || min === undefined) return 0;
+  return Math.max(0, Math.min(100, (min / total) * 100));
+}
+
+function montarComparativo(row, neo){
+  const tangerinoMin = intervalParaMin(row.horas_trabalhadas);
+  const wmMin = intervalParaMin(row.workmonitor_total) ?? (neo ? intervalParaMin(neo.total) : null);
+  const gclickMin = intervalParaMin(row.total_gclick);
+
+  const linha = (label, min) => `
+    <tr>
+      <td>${label}</td>
+      <td>${min === null || min === undefined ? '<span class="muted">—</span>' : minParaHm(min, false)}</td>
+    </tr>`;
+
+  const diff = (a, b) => (a === null || a === undefined || b === null || b === undefined) ? null : a - b;
+
+  const diffs = [
+    ['WorkMonitor vs. Tangerino', diff(wmMin, tangerinoMin)],
+    ['G-Click vs. Tangerino', diff(gclickMin, tangerinoMin)],
+    ['G-Click vs. WorkMonitor', diff(gclickMin, wmMin)],
+  ];
+
+  return `
+    <table class="dh-table">
+      <thead><tr><th>Fonte</th><th>Total do dia</th></tr></thead>
+      <tbody>
+        ${linha('Ponto (Tangerino)', tangerinoMin)}
+        ${linha('WorkMonitor', wmMin)}
+        ${linha('G-Click', gclickMin)}
+      </tbody>
+    </table>
+    <table class="dh-table" style="margin-top:10px;">
+      <thead><tr><th>Diferença</th><th></th></tr></thead>
+      <tbody>
+        ${diffs.map(([label, v]) => linha(label, v).replace('<span class="muted">—</span>', '<span class="muted">sem dado suficiente</span>')).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderTopApps(apps){
+  if(!apps || !apps.length) return '<div class="dh-empty">Sem dados de aplicativos pra este dia.</div>';
+  return `
+    <table class="dh-table">
+      <thead><tr><th>Pos.</th><th>Aplicativo</th><th>Tempo</th><th>% do tempo</th><th>Produtividade</th></tr></thead>
+      <tbody>
+        ${apps.map(a => `
+          <tr>
+            <td>${a.posicao ?? ''}</td>
+            <td>${escapeHtml(a.aplicativo || '')}</td>
+            <td>${a.tempo_min != null ? minParaHm(a.tempo_min, false) : '<span class="muted">—</span>'}</td>
+            <td>${a.pct_tempo != null ? a.pct_tempo.toFixed(1).replace('.', ',') + '%' : '<span class="muted">—</span>'}</td>
+            <td>${a.produtividade ? escapeHtml(a.produtividade) : '<span class="muted">—</span>'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function renderGraficoApps(apps){
+  if(!apps || !apps.length) return '<div class="dh-empty">Sem dados suficientes.</div>';
+  const max = Math.max(...apps.map(a => a.tempo_min || 0), 1);
+  return apps.map(a => `
+    <div class="bar-row">
+      <div class="lbl" title="${escapeHtml(a.aplicativo || '')}">${escapeHtml(a.aplicativo || '')}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct(a.tempo_min, max)}%"></div></div>
+      <div>${a.tempo_min != null ? minParaHm(a.tempo_min, false) : '—'}</div>
+    </div>`).join('');
+}
+
+function renderGraficoDistribuicao(produtivoMin, neutroMin, improdutivoMin){
+  const total = (produtivoMin || 0) + (neutroMin || 0) + (improdutivoMin || 0);
+  if(!total) return '<div class="dh-empty">Sem dados suficientes.</div>';
+  const linhas = [
+    ['Produtivo', produtivoMin, 'produtivo'],
+    ['Neutro', neutroMin, 'neutro'],
+    ['Improdutivo', improdutivoMin, 'improdutivo'],
+  ];
+  return linhas.map(([label, min, cls]) => `
+    <div class="bar-row">
+      <div class="lbl">${label}</div>
+      <div class="bar-track"><div class="bar-fill ${cls}" style="width:${pct(min, total)}%"></div></div>
+      <div>${min != null ? pct(min, total).toFixed(0) + '%' : '—'}</div>
+    </div>`).join('');
+}
+
+async function abrirDetalhe(row){
+  const overlay = document.getElementById('detalhe-overlay');
+  const body = document.getElementById('detalhe-body');
+  body.innerHTML = `
+    <div class="dh-header">
+      <div><h3>${escapeHtml(row.nome)}</h3><div class="dh-meta">Carregando dados de ${row.data}...</div></div>
+      <button class="dh-close" id="dh-close-1">&times;</button>
+    </div>`;
+  document.getElementById('dh-close-1').addEventListener('click', fecharDetalhe);
+  overlay.classList.add('open');
+
+  if(!isConfigured){
+    body.innerHTML = `
+      <div class="dh-header">
+        <div><h3>${escapeHtml(row.nome)}</h3><div class="dh-meta">${row.data}</div></div>
+        <button class="dh-close" id="dh-close-2">&times;</button>
+      </div>
+      <div class="dh-empty">Modo demonstração: conecte o Supabase pra ver o relatório completo do WorkMonitor.</div>`;
+    document.getElementById('dh-close-2').addEventListener('click', fecharDetalhe);
+    return;
+  }
+
+  try{
+    const [neoRows, apps] = await Promise.all([
+      sbGet('neocode_diario', {select:'*', colaborador_id:`eq.${row.colaborador_id}`, data:`eq.${row.data}`}),
+      sbGet('apps_uso_diario', {select:'*', colaborador_id:`eq.${row.colaborador_id}`, data:`eq.${row.data}`, order:'posicao.asc'}),
+    ]);
+    const neo = neoRows && neoRows[0] ? neoRows[0] : null;
+    const metricas = (neo && neo.metricas) || {};
+
+    const totalMin = neo ? intervalParaMin(neo.total) : intervalParaMin(row.workmonitor_total);
+    const produtivoMin = neo ? intervalParaMin(neo.produtivo) : null;
+    const neutroMin = neo ? intervalParaMin(neo.neutro) : null;
+    const improdutivoMin = neo ? intervalParaMin(neo.distracao) : null;
+
+    const produtividadeGeral = metricas.produtividade_geral_pct != null
+      ? metricas.produtividade_geral_pct
+      : (produtivoMin != null && (produtivoMin + neutroMin + improdutivoMin) > 0
+          ? (produtivoMin / (produtivoMin + neutroMin + improdutivoMin)) * 100
+          : null);
+
+    body.innerHTML = `
+      <div class="dh-header">
+        <div>
+          <h3>${escapeHtml(row.nome)}</h3>
+          <div class="dh-meta">
+            ${fmt(row.departamento ? escapeHtml(row.departamento) : null)} · ${row.data}
+            ${neo && (neo.inicio || neo.fim) ? ` · ${fmt(fmtTime(neo.inicio))} — ${fmt(fmtTime(neo.fim))}` : ''}
+          </div>
+        </div>
+        <button class="dh-close" id="dh-close-3">&times;</button>
+      </div>
+
+      <div class="dh-section">
+        <h4>Tempo</h4>
+        <div class="dh-cards">
+          <div class="dh-card"><div class="n">${totalMin != null ? minParaHm(totalMin, false) : '—'}</div><div class="l">Tempo total</div></div>
+          <div class="dh-card"><div class="n">${produtivoMin != null ? minParaHm(produtivoMin, false) : '—'}</div><div class="l">Tempo produtivo</div></div>
+          <div class="dh-card"><div class="n">${neutroMin != null ? minParaHm(neutroMin, false) : '—'}</div><div class="l">Tempo neutro</div></div>
+          <div class="dh-card"><div class="n">${improdutivoMin != null ? minParaHm(improdutivoMin, false) : '—'}</div><div class="l">Tempo improdutivo</div></div>
+        </div>
+      </div>
+
+      <div class="dh-section">
+        <h4>Contadores</h4>
+        <div class="dh-cards">
+          <div class="dh-card"><div class="n">${fmt(metricas.apps_utilizados)}</div><div class="l">Apps utilizados</div></div>
+          <div class="dh-card"><div class="n">${fmt(metricas.registros_atividade)}</div><div class="l">Registros de atividade</div></div>
+          <div class="dh-card"><div class="n">${fmt(metricas.trocas_aplicativo)}</div><div class="l">Trocas de aplicativo</div></div>
+          <div class="dh-card"><div class="n">${fmt(metricas.cliques_teclas)}</div><div class="l">Cliques + teclas</div></div>
+        </div>
+      </div>
+
+      <div class="dh-section">
+        <h4>Produtividade geral</h4>
+        <div class="dh-card">
+          <div class="n">${produtividadeGeral != null ? produtividadeGeral.toFixed(1).replace('.', ',') + '%' : '—'}</div>
+          <div class="dh-prod-bar"><div class="fill" style="width:${produtividadeGeral || 0}%"></div></div>
+        </div>
+      </div>
+
+      <div class="dh-section">
+        <h4>Top 5 aplicativos</h4>
+        ${renderTopApps(apps)}
+      </div>
+
+      <div class="dh-section">
+        <h4>Aplicativos com maior tempo de uso</h4>
+        ${renderGraficoApps(apps)}
+      </div>
+
+      <div class="dh-section">
+        <h4>Distribuição de produtividade</h4>
+        ${renderGraficoDistribuicao(produtivoMin, neutroMin, improdutivoMin)}
+      </div>
+
+      <div class="dh-section">
+        <h4>Destaques do dia</h4>
+        <div class="dh-destaques">
+          <div class="item"><div class="l">Aplicativo mais usado</div>${fmt(metricas.app_mais_usado ? escapeHtml(metricas.app_mais_usado) : null)}${metricas.app_mais_usado_tempo_txt ? ` — ${escapeHtml(String(metricas.app_mais_usado_tempo_txt))}` : ''}</div>
+          <div class="item"><div class="l">Trocas p/ esse app</div>${fmt(metricas.app_mais_usado_trocas)}</div>
+          <div class="item"><div class="l">Horário inicial</div>${fmt(metricas.horario_inicial_destaque ? escapeHtml(String(metricas.horario_inicial_destaque)) : null)}</div>
+          <div class="item"><div class="l">Horário final</div>${fmt(metricas.horario_final_destaque ? escapeHtml(String(metricas.horario_final_destaque)) : null)}</div>
+          <div class="item"><div class="l">Maior atividade contínua</div>${fmt(metricas.maior_atividade_continua ? escapeHtml(String(metricas.maior_atividade_continua)) : null)}</div>
+        </div>
+      </div>
+
+      <div class="dh-section" style="margin-bottom:4px;">
+        <h4>Comparativo Ponto x WorkMonitor x G-Click</h4>
+        ${montarComparativo(row, neo)}
+      </div>
+    `;
+    document.getElementById('dh-close-3').addEventListener('click', fecharDetalhe);
+  }catch(err){
+    console.error(err);
+    body.innerHTML = `
+      <div class="dh-header">
+        <div><h3>${escapeHtml(row.nome)}</h3><div class="dh-meta">${row.data}</div></div>
+        <button class="dh-close" id="dh-close-4">&times;</button>
+      </div>
+      <div class="dh-empty">Erro ao carregar detalhe: ${escapeHtml(err.message)}</div>`;
+    document.getElementById('dh-close-4').addEventListener('click', fecharDetalhe);
+  }
+}
+function fecharDetalhe(){
+  document.getElementById('detalhe-overlay').classList.remove('open');
+}
+document.getElementById('detalhe-overlay').addEventListener('click', (e) => {
+  if(e.target.id === 'detalhe-overlay') fecharDetalhe();
+});
+
 document.getElementById('refresh-btn').addEventListener('click', load);
 document.getElementById('f-busca').addEventListener('input', applyFilters);
-document.getElementById('f-departamento').addEventListener('change', applyFilters);
-document.getElementById('f-supervisor').addEventListener('change', applyFilters);
-document.getElementById('f-classificacao').addEventListener('change', applyFilters);
-document.getElementById('f-data').addEventListener('change', applyFilters);
+document.getElementById('f-gestor').addEventListener('change', applyFilters);
+document.getElementById('f-data').addEventListener('change', atualizarPeriodo);
 
 load();
 </script>
