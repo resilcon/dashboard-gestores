@@ -46,15 +46,6 @@
   }
   .period-bar .period-label{font-size:13px; color:var(--muted); margin-left:auto;}
 
-  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:22px;}
-  .card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; border-left:4px solid var(--accent); box-shadow:var(--shadow);}
-  .card .n{font-size:26px; font-weight:600;}
-  .card .l{font-size:12px; color:var(--muted); margin-top:4px;}
-  .card.warn{border-left-color:var(--warn);}
-  .card.ok{border-left-color:var(--ok);}
-  .card.danger{border-left-color:var(--danger);}
-  .card.accent{border-left-color:var(--accent);}
-
   .badge{padding:3px 9px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block;}
   .badge.OK{background:rgba(28,138,82,.13); color:var(--ok);}
   .badge.ABAIXODOLM{background:rgba(165,105,10,.13); color:var(--warn);}
@@ -152,6 +143,19 @@
   .bar-fill.neutro{background:var(--warn);}
   .bar-fill.improdutivo{background:var(--danger);}
   .dh-empty{color:var(--muted); font-size:13px; padding:12px 0;}
+
+  /* Modal de gerenciamento de colaboradores */
+  .ger-section{margin-bottom:18px;}
+  .ger-section h4{font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin:0 0 10px;}
+  .ger-add-form{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;}
+  .ger-add-form input{flex:1; min-width:140px;}
+  .ger-list{max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:10px;}
+  .ger-row{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+  .ger-row:last-child{border-bottom:none;}
+  .ger-row .ger-nome{flex:1; font-size:13px; font-weight:600; min-width:140px;}
+  .ger-row input.ger-sup{width:170px;}
+  .ger-row button{font-size:12px; padding:6px 10px;}
+  .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
 </head>
 <body>
@@ -163,6 +167,7 @@
   </div>
   <div style="display:flex; align-items:center; gap:12px;">
     <span id="status-pill">—</span>
+    <button id="gerenciar-btn">Gerenciar colaboradores</button>
     <button id="theme-toggle" class="icon-btn">Modo escuro</button>
     <button id="refresh-btn">Atualizar</button>
   </div>
@@ -181,8 +186,6 @@
     <input id="f-data" type="date">
     <span class="period-label" id="period-label"></span>
   </div>
-
-  <div class="cards" id="cards"></div>
 
   <div class="filters">
     <input id="f-busca" type="text" placeholder="Buscar colaborador...">
@@ -230,6 +233,12 @@
 
 <div class="modal-overlay" id="detalhe-overlay">
   <div class="modal detalhe-modal" id="detalhe-body">
+    <!-- preenchido via JS -->
+  </div>
+</div>
+
+<div class="modal-overlay" id="gerenciar-overlay">
+  <div class="modal detalhe-modal" id="gerenciar-body" style="max-width:560px;">
     <!-- preenchido via JS -->
   </div>
 </div>
@@ -291,6 +300,26 @@ async function sbGet(tabela, params){
   return await res.json();
 }
 
+// POST/PATCH genérico (usado pelo gerenciamento de colaboradores)
+async function sbWrite(tabela, method, body, params, prefer){
+  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabela}${qs}`, {
+    method,
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": prefer || "return=minimal"
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined
+  });
+  if(!res.ok){
+    const t = await res.text();
+    throw new Error(t || `Erro ${res.status}`);
+  }
+  return res.status === 204 ? null : await res.json().catch(() => null);
+}
+
 async function fetchData(){
   if(!isConfigured){
     document.getElementById('demo-banner').style.display = 'block';
@@ -335,20 +364,6 @@ function escapeHtml(s){
 }
 function badgeClass(classificacao){
   return (classificacao || '').replace(/\s+/g, '');
-}
-
-// ------------------------------------------------------------
-// Cards resumo
-// ------------------------------------------------------------
-function renderCards(rows){
-  const count = (cls) => rows.filter(r => r.classificacao === cls).length;
-  const cards = document.getElementById('cards');
-  cards.innerHTML = `
-    <div class="card ok"><div class="n">${count('OK')}</div><div class="l">OK</div></div>
-    <div class="card warn"><div class="n">${count('ABAIXO DO LM')}</div><div class="l">Abaixo do LM</div></div>
-    <div class="card accent"><div class="n">${count('ACIMA DA JORNADA')}</div><div class="l">Acima da jornada</div></div>
-    <div class="card danger"><div class="n">${count('SEM LANCAMENTO')}</div><div class="l">Sem lançamento</div></div>
-  `;
 }
 
 function populateSelect(id, rows, field){
@@ -412,7 +427,6 @@ function applyFilters(){
   if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
   if(gestor) rows = rows.filter(r => r.supervisor === gestor);
 
-  renderCards(rows);
   renderTable(rows);
 }
 
@@ -744,6 +758,180 @@ function fecharDetalhe(){
 document.getElementById('detalhe-overlay').addEventListener('click', (e) => {
   if(e.target.id === 'detalhe-overlay') fecharDetalhe();
 });
+
+// ------------------------------------------------------------
+// Gerenciar colaboradores — adicionar / editar gestor / remover
+// (remover é soft-delete: só marca status='inativo', nunca apaga a
+// linha nem o histórico associado a ela em ponto_diario/neocode_diario/etc.)
+// ------------------------------------------------------------
+let gerenciarColabs = [];
+let mostrarInativos = false;
+
+async function carregarGerenciar(){
+  gerenciarColabs = await sbGet('colaboradores', {select:'id,nome,supervisor,status', order:'nome.asc'});
+  renderGerenciar();
+}
+
+function renderGerenciar(){
+  const body = document.getElementById('gerenciar-body');
+  const ativos = gerenciarColabs.filter(c => c.status === 'ativo');
+  const inativos = gerenciarColabs.filter(c => c.status !== 'ativo');
+  body.innerHTML = `
+    <div class="dh-header">
+      <div>
+        <h3>Gerenciar colaboradores</h3>
+        <div class="dh-meta">"Remover" só marca como inativo — some do painel, mas o histórico continua salvo e dá pra reativar depois.</div>
+      </div>
+      <button class="dh-close" id="ger-close">&times;</button>
+    </div>
+
+    <div class="ger-section">
+      <h4>Adicionar colaborador</h4>
+      <div class="ger-add-form">
+        <input id="ger-novo-nome" type="text" placeholder="Nome do colaborador">
+        <input id="ger-novo-sup" type="text" placeholder="Gestor">
+        <button id="ger-add-btn">Adicionar</button>
+      </div>
+      <div class="modal-error" id="ger-add-error"></div>
+    </div>
+
+    <div class="ger-section">
+      <h4>Ativos (${ativos.length})</h4>
+      <div class="ger-list">
+        ${ativos.length ? ativos.map(c => `
+          <div class="ger-row" data-id="${c.id}">
+            <div class="ger-nome">${escapeHtml(c.nome)}</div>
+            <input class="ger-sup" type="text" value="${escapeHtml(c.supervisor || '')}" placeholder="Gestor">
+            <button class="ger-save">Salvar</button>
+            <button class="ger-remove">Remover</button>
+          </div>`).join('') : '<div class="dh-empty">Nenhum colaborador ativo.</div>'}
+      </div>
+    </div>
+
+    <div class="ger-section">
+      <button class="ger-toggle-link" id="ger-toggle-inativos">${mostrarInativos ? 'Ocultar' : 'Mostrar'} removidos (${inativos.length})</button>
+      ${mostrarInativos ? `
+        <div class="ger-list" style="margin-top:10px;">
+          ${inativos.length ? inativos.map(c => `
+            <div class="ger-row" data-id="${c.id}">
+              <div class="ger-nome">${escapeHtml(c.nome)} <span class="muted">(removido)</span></div>
+              <button class="ger-reativar">Reativar</button>
+            </div>`).join('') : '<div class="dh-empty">Nenhum colaborador removido.</div>'}
+        </div>` : ''}
+    </div>
+  `;
+
+  document.getElementById('ger-close').addEventListener('click', fecharGerenciar);
+  document.getElementById('ger-add-btn').addEventListener('click', onAdicionarColaborador);
+  document.getElementById('ger-toggle-inativos').addEventListener('click', () => {
+    mostrarInativos = !mostrarInativos;
+    renderGerenciar();
+  });
+
+  body.querySelectorAll('.ger-save').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.id;
+      const valor = row.querySelector('.ger-sup').value.trim();
+      btn.disabled = true; btn.textContent = 'Salvando...';
+      try{
+        await sbWrite('colaboradores', 'PATCH', {supervisor: valor || null}, {id:`eq.${id}`});
+        await carregarGerenciar();
+        await load();
+      }catch(err){
+        alert(`Não foi possível salvar: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Salvar';
+      }
+    });
+  });
+
+  body.querySelectorAll('.ger-remove').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.id;
+      const nome = row.querySelector('.ger-nome').textContent;
+      if(!confirm(`Remover ${nome}? Ele deixa de aparecer no painel, mas o histórico continua salvo (dá pra reativar depois).`)) return;
+      btn.disabled = true; btn.textContent = 'Removendo...';
+      try{
+        await sbWrite('colaboradores', 'PATCH', {status:'inativo'}, {id:`eq.${id}`});
+        await carregarGerenciar();
+        await load();
+      }catch(err){
+        alert(`Não foi possível remover: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Remover';
+      }
+    });
+  });
+
+  body.querySelectorAll('.ger-reativar').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.id;
+      btn.disabled = true; btn.textContent = 'Reativando...';
+      try{
+        await sbWrite('colaboradores', 'PATCH', {status:'ativo'}, {id:`eq.${id}`});
+        await carregarGerenciar();
+        await load();
+      }catch(err){
+        alert(`Não foi possível reativar: ${err.message}`);
+        btn.disabled = false; btn.textContent = 'Reativar';
+      }
+    });
+  });
+}
+
+async function onAdicionarColaborador(){
+  const nomeEl = document.getElementById('ger-novo-nome');
+  const supEl = document.getElementById('ger-novo-sup');
+  const errorEl = document.getElementById('ger-add-error');
+  errorEl.style.display = 'none';
+  const nome = nomeEl.value.trim();
+  const supervisor = supEl.value.trim();
+  if(!nome){
+    errorEl.textContent = 'Digite o nome do colaborador.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('ger-add-btn');
+  btn.disabled = true; btn.textContent = 'Adicionando...';
+  try{
+    // upsert por nome: se já existir (até um removido), reativa e atualiza o gestor
+    await sbWrite('colaboradores', 'POST',
+      {nome, supervisor: supervisor || null, status: 'ativo'},
+      {on_conflict: 'nome'},
+      'resolution=merge-duplicates,return=minimal');
+    nomeEl.value = ''; supEl.value = '';
+    await carregarGerenciar();
+    await load();
+  }catch(err){
+    errorEl.textContent = `Não foi possível adicionar: ${err.message}`;
+    errorEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Adicionar';
+  }
+}
+
+async function abrirGerenciar(){
+  document.getElementById('gerenciar-overlay').classList.add('open');
+  const body = document.getElementById('gerenciar-body');
+  body.innerHTML = '<div class="dh-empty">Carregando...</div>';
+  if(!isConfigured){
+    body.innerHTML = '<div class="dh-empty">Modo demonstração: conecte o Supabase pra gerenciar colaboradores de verdade.</div>';
+    return;
+  }
+  try{
+    await carregarGerenciar();
+  }catch(err){
+    body.innerHTML = `<div class="dh-empty">Erro ao carregar colaboradores: ${escapeHtml(err.message)}</div>`;
+  }
+}
+function fecharGerenciar(){
+  document.getElementById('gerenciar-overlay').classList.remove('open');
+}
+document.getElementById('gerenciar-overlay').addEventListener('click', (e) => {
+  if(e.target.id === 'gerenciar-overlay') fecharGerenciar();
+});
+document.getElementById('gerenciar-btn').addEventListener('click', abrirGerenciar);
 
 document.getElementById('refresh-btn').addEventListener('click', load);
 document.getElementById('f-busca').addEventListener('input', applyFilters);
