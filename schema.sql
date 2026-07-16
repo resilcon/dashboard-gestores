@@ -316,3 +316,75 @@ where c.status = 'ativo';
 -- horario_final_destaque) -- antes só ia produtividade_geral_pct e
 -- maior_atividade_continua. Isso alimenta a seção "Destaques do Dia" do
 -- modal de detalhe do colaborador no site.
+
+-- ============================================================
+-- Seção 6 — Gerenciar colaboradores direto pela página + gestores
+-- fixos (JÁ APLICADA em 2026-07-16)
+-- Motivo: dava pra adicionar/editar/remover colaborador só pelo Supabase.
+-- Passou a dar pra fazer isso direto pelo link do dashboard (botão
+-- "Gerenciar colaboradores"), sem precisar entrar no Supabase.
+-- ============================================================
+
+-- 6.1 — RLS de escrita em colaboradores (além da "leitura publica" já
+-- existente). Mesmo modelo de confiança de justificativas_diarias: link
+-- único compartilhado, sem login individual. Só INSERT/UPDATE — nunca
+-- DELETE (remover colaborador é sempre soft-delete via status='inativo',
+-- pra não perder o histórico de ponto/WorkMonitor/G-Click, que referencia
+-- colaborador_id em ponto_diario/neocode_diario/tarefas_gclick).
+
+alter table public.colaboradores enable row level security;
+
+create policy "insercao publica" on public.colaboradores
+    for insert with check (true);
+
+create policy "atualizacao publica" on public.colaboradores
+    for update using (true) with check (true);
+
+-- 6.2 — Sincronização de roster (2026-07-16): colaboradores/gestores
+-- foram conferidos contra a planilha oficial fornecida pelo usuário
+-- (40 nomes ativos). Quem não estava na planilha foi marcado como
+-- inativo (saiu da empresa/outro motivo), sem apagar histórico.
+-- Resultado: 40 'ativo' + 23 'inativo'.
+
+-- 6.3 — Tabela nova: gestores fixos. Antes o campo colaboradores.supervisor
+-- era texto livre digitado à mão. Agora existe uma lista fixa e gerenciável
+-- de gestores (adicionar/remover pela própria tela), e o campo supervisor
+-- do colaborador passou a ser escolhido por menu suspenso a partir dessa
+-- lista (o texto em colaboradores.supervisor continua sendo só texto —
+-- não é uma foreign key — pra não travar em caso de nomes legados que não
+-- estejam (mais) na lista de gestores).
+
+create table if not exists public.gestores (
+    id uuid primary key default gen_random_uuid(),
+    nome text not null unique,
+    status text not null default 'ativo',
+    created_at timestamptz not null default now()
+);
+
+alter table public.gestores enable row level security;
+
+create policy "leitura publica" on public.gestores
+    for select using (true);
+
+create policy "insercao publica" on public.gestores
+    for insert with check (true);
+
+create policy "atualizacao publica" on public.gestores
+    for update using (true) with check (true);
+
+-- Populada uma vez, a partir dos supervisores já existentes em colaboradores:
+-- insert into public.gestores (nome)
+-- select distinct trim(supervisor) from public.colaboradores
+-- where supervisor is not null and trim(supervisor) <> ''
+-- on conflict (nome) do nothing;
+-- Resultado: 9 gestores.
+
+-- Remover gestor também é soft-delete (status='inativo') — some do menu
+-- suspenso, mas colaboradores já vinculados a ele não mudam, e dá pra
+-- reativar depois pela própria tela.
+
+-- 6.4 — Modal de detalhe do colaborador: a seção "Comparativo Ponto x
+-- WorkMonitor x G-Click" foi movida pro topo (logo depois de "Tempo"),
+-- e "Tempo" foi renomeado pra "Tempo (WorkMonitor)" pra deixar claro
+-- que aqueles 4 cards vêm do WorkMonitor, não do Ponto. Mudança só de
+-- HTML/JS no index.html, sem impacto no schema.

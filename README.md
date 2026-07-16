@@ -14,6 +14,10 @@ Repositório: `resilcon/dashboard-gestores` (público — necessário pra usar G
 
 O roster de colaboradores/gestores foi sincronizado em 2026-07-16 com a planilha oficial fornecida (40 ativos); quem não estava na lista foi marcado como inativo (saiu da empresa), sem apagar o histórico.
 
+**Gestores fixos (2026-07-16):** a lista de gestores deixou de ser texto livre. Existe agora uma tabela `gestores` (nova, com as mesmas policies de RLS de `colaboradores` — leitura/inserção/atualização públicas, nunca DELETE), populada inicialmente com os 9 supervisores já em uso. No painel "Gerenciar colaboradores", o campo de gestor de cada colaborador (tanto ao adicionar um novo quanto ao editar um existente) virou um menu suspenso alimentado por essa tabela, e uma seção nova nesse mesmo painel permite cadastrar novos gestores ou remover algum (soft-delete — some do menu, mas colaboradores já vinculados a ele não mudam, e dá pra reativar depois).
+
+**Modal de detalhe do colaborador (2026-07-16):** a seção "Comparativo Ponto x WorkMonitor x G-Click" foi movida pro topo do modal (logo após a seção de tempo), em vez de ficar escondida no final. A seção "Tempo" foi renomeada pra "Tempo (WorkMonitor)" pra deixar claro que aqueles 4 cards (total/produtivo/neutro/improdutivo) vêm do WorkMonitor.
+
 ⚠️ Como o repositório é público, qualquer pessoa com o link consegue ver os nomes e horários dos colaboradores. Já que é uso interno, isso foi um trade-off aceito em troca de não pagar hospedagem — se no futuro quiser restringir o acesso de verdade (login por gestor), a alternativa é Cloudflare Pages + Cloudflare Access (grátis até 50 usuários, com login de verdade).
 
 ## Arquivos
