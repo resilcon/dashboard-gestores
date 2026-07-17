@@ -149,7 +149,7 @@
     padding:40px 36px; width:100%; max-width:400px; box-shadow:0 10px 40px rgba(20,30,50,.14);
     text-align:center;
   }
-  .login-logo{margin:0 auto 8px; width:64px; height:64px;}
+  .login-logo{display:block; margin:0 auto; width:190px; height:auto;}
   .login-wordmark{font-size:26px; font-weight:700; letter-spacing:.01em; margin-top:6px;}
   .login-wordmark .w1{color:#1f6d7a;}
   .login-wordmark .w2{color:#c1504a;}
@@ -219,17 +219,26 @@
   /* Modal de gerenciamento de colaboradores */
   .ger-section{margin-bottom:18px;}
   .ger-section h4{font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); margin:0 0 10px;}
-  .ger-add-form{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;}
-  .ger-add-form input, .ger-add-form select{flex:1; min-width:140px;}
+  .ger-add-form{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;}
+  .ger-add-form input:not([type="checkbox"]), .ger-add-form select{flex:1; min-width:140px;}
   .ger-list{max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:10px;}
   .ger-row{display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
   .ger-row:last-child{border-bottom:none;}
   .ger-row .ger-nome{flex:1; font-size:13px; font-weight:600; min-width:140px;}
   .ger-row select.ger-sup{width:170px;}
   .ger-row input.ger-apelidos{width:200px; font-size:12px;}
-  .ger-diretor-toggle{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); white-space:nowrap; cursor:pointer;}
-  .ger-diretor-toggle input{margin:0;}
-  .ger-row button{font-size:12px; padding:6px 10px;}
+  /* Especificidade maior de propósito -- sobrescreve as regras genéricas
+     ".modal label{display:block;...}" e ".modal input{width:100%;...}"
+     (pensadas pros formulários de justificativa/edição), que senão vazam
+     pro checkbox "Diretor" e o deixam esticado/cortado. */
+  .modal .ger-diretor-toggle{
+    display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted);
+    white-space:nowrap; cursor:pointer; margin:0; flex:0 0 auto; width:auto;
+  }
+  .modal .ger-diretor-toggle input[type="checkbox"]{
+    width:14px; height:14px; margin:0; flex:0 0 auto; accent-color:var(--accent);
+  }
+  .ger-row button{font-size:12px; padding:6px 10px; flex:0 0 auto;}
   .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
 </head>
@@ -309,16 +318,8 @@
 
 <div class="login-screen" id="quemsou-overlay">
   <div class="login-card">
-    <svg class="login-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="100" cy="100" r="92" fill="none" stroke="#9aa0ab" stroke-width="6" stroke-linecap="round" stroke-dasharray="500 60"/>
-      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#1f6d7a" transform="rotate(0 100 100)"/>
-      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#c1504a" transform="rotate(90 100 100)"/>
-      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#1f6d7a" transform="rotate(180 100 100)"/>
-      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#c1504a" transform="rotate(270 100 100)"/>
-    </svg>
-    <div class="login-wordmark"><span class="w1">resil</span><span class="w2">con</span></div>
-    <div class="login-tagline">Contabilidade Consultiva</div>
-    <h3>Dashboard Gestores</h3>
+    <img class="login-logo" src="logo-resilcon.png" alt="Resilcon">
+    <h3 style="margin-top:20px;">Dashboard Gestores</h3>
     <p>Selecione seu nome pra abrir o dashboard já filtrado na sua equipe. Fica salvo neste navegador pros próximos acessos (dá pra trocar depois).</p>
     <label for="quemsou-select-gate">Seu nome</label>
     <select id="quemsou-select-gate"><option value="">Selecione seu nome...</option></select>
