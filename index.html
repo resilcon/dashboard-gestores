@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Gestores</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#f4f6fa; --panel:#ffffff; --panel-2:#eef1f7; --border:#dde3ed;
@@ -51,6 +52,16 @@
     background:var(--panel-2); color:var(--text); font-size:18px; line-height:1; cursor:pointer;
   }
   .periodo-nav:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .view-toggle{display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden;}
+  .view-toggle-btn{border:none; border-radius:0; padding:7px 14px; font-size:13px; background:var(--panel-2); color:var(--muted); cursor:pointer;}
+  .view-toggle-btn.active{background:var(--accent); color:#fff;}
+  .view-toggle-btn:hover:not(.active){background:var(--border);}
+  #quem-sou-banner{display:none; align-items:center; gap:10px; flex-wrap:wrap;}
+  #quem-sou-banner select{
+    background:var(--panel); color:var(--text); border:1px solid var(--warn);
+    padding:7px 10px; border-radius:8px; font-size:13px;
+  }
+  #meu-gestor-label{display:none; align-items:center; gap:8px; margin-bottom:18px; font-size:13px; color:var(--muted);}
 
   .badge{padding:3px 9px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block;}
   .badge.OK{background:rgba(28,138,82,.13); color:var(--ok);}
@@ -182,6 +193,7 @@
   .ger-row:last-child{border-bottom:none;}
   .ger-row .ger-nome{flex:1; font-size:13px; font-weight:600; min-width:140px;}
   .ger-row select.ger-sup{width:170px;}
+  .ger-row input.ger-apelidos{width:200px; font-size:12px;}
   .ger-row button{font-size:12px; padding:6px 10px;}
   .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
@@ -196,6 +208,7 @@
   <div style="display:flex; align-items:center; gap:12px;">
     <span id="status-pill">—</span>
     <button id="gerenciar-btn">Gerenciar colaboradores</button>
+    <button id="exportar-btn">Exportar Excel</button>
     <button id="theme-toggle" class="icon-btn">Modo escuro</button>
     <button id="refresh-btn">Atualizar</button>
   </div>
@@ -206,14 +219,29 @@
     Exibindo dados de demonstração. Configure SUPABASE_URL e SUPABASE_ANON_KEY em index.html para conectar aos dados reais.
   </div>
   <div id="empty-db-banner" class="info-banner" style="display:none;">
-    Nenhum registro encontrado para o dia selecionado.
+    Nenhum registro encontrado para o período selecionado.
+  </div>
+
+  <div id="quem-sou-banner" class="info-banner">
+    <span>Pra ver direto sua equipe, selecione seu nome:</span>
+    <select id="quem-sou-select"><option value="">Selecione seu nome...</option></select>
+    <button id="quem-sou-btn">Entrar</button>
+    <span class="muted" style="font-size:12px;">(isso só filtra a visualização pra você — não restringe o acesso aos dados de quem tiver o link)</span>
+  </div>
+  <div id="meu-gestor-label">
+    Olá, <strong class="nome" style="color:var(--text);"></strong>
+    <button class="ger-toggle-link" id="trocar-identidade-btn">Trocar</button>
   </div>
 
   <div class="period-bar">
     <label for="f-data">Período</label>
-    <button type="button" id="periodo-anterior" class="periodo-nav" title="Dia anterior" aria-label="Dia anterior">&#8249;</button>
+    <button type="button" id="periodo-anterior" class="periodo-nav" title="Dia anterior" aria-label="Anterior">&#8249;</button>
     <input id="f-data" type="date">
-    <button type="button" id="periodo-proximo" class="periodo-nav" title="Próximo dia" aria-label="Próximo dia">&#8250;</button>
+    <button type="button" id="periodo-proximo" class="periodo-nav" title="Próximo dia" aria-label="Próximo">&#8250;</button>
+    <div class="view-toggle">
+      <button type="button" id="view-dia" class="view-toggle-btn active">Dia</button>
+      <button type="button" id="view-semana" class="view-toggle-btn">Semana</button>
+    </div>
     <span class="period-label" id="period-label"></span>
   </div>
 
@@ -230,7 +258,7 @@
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
+        <tr id="thead-row">
           <th>Colaborador</th>
           <th>Gestor</th>
           <th>Total GCLICK</th>
@@ -299,9 +327,13 @@ const DEMO_DATA = [
   {colaborador_id:"5", nome:"Elaine Rocha", departamento:"Contábil", supervisor:"Diego", status:"ativo", tipo_colaborador:"estagiario", data:"2026-07-15", horas_trabalhadas:"06:00:00", workmonitor_total:"05:40:00", total_gclick:"04:50:00", classificacao:"OK"},
 ];
 
-let allRows = [];       // todas as linhas carregadas (várias datas, últimos 500 registros)
-let rowsDoDia = [];     // linhas já filtradas pela data selecionada
+let allRows = [];       // todas as linhas carregadas (várias datas, últimos 5000 registros)
+let rowsDoDia = [];     // linhas já filtradas pela data selecionada (modo "Dia")
 let currentFilteredRows = [];
+let viewMode = 'dia';               // 'dia' | 'semana'
+let linhasSemanaAgregadas = [];     // 1 linha por colaborador, somando a semana (modo "Semana")
+let datasSemanaAtual = [];          // as 7 datas (seg a dom) da semana selecionada
+let meuGestor = localStorage.getItem('dashboard-meu-gestor') || '';
 
 function setStatusPill(text){ document.getElementById('status-pill').textContent = text; }
 
@@ -361,7 +393,10 @@ async function fetchData(){
     setStatusPill('Modo demonstração');
     return DEMO_DATA;
   }
-  return await sbGet(VIEW, {select:'*', order:'data.desc', limit:'500'});
+  // limit alto pra sempre trazer o histórico inteiro (visão semanal e o
+  // histórico recente no modal do colaborador dependem disso) -- com ~45
+  // colaboradores por dia, 5000 linhas cobre mais de 100 dias de histórico.
+  return await sbGet(VIEW, {select:'*', order:'data.desc', limit:'5000'});
 }
 
 // ------------------------------------------------------------
@@ -393,6 +428,10 @@ function fmtTime(v){
   if(!v) return null;
   return String(v).slice(0,5);
 }
+function fmtDataBr(dataStr){
+  const [ano, mes, dia] = dataStr.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
 function fmt(v){ return (v === null || v === undefined || v === '') ? '<span class="muted">—</span>' : v; }
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -423,6 +462,7 @@ function renderTable(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
     tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    currentFilteredRows = [];
     return;
   }
   const ordenadas = [...rows].sort((a,b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
@@ -467,38 +507,256 @@ function temDadosNoDia(r){
 function applyFilters(){
   const busca = document.getElementById('f-busca').value.toLowerCase().trim();
   const gestor = document.getElementById('f-gestor').value;
-  const dados = document.getElementById('f-dados').value;
 
-  let rows = rowsDoDia;
-  if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
-  if(gestor) rows = rows.filter(r => r.supervisor === gestor);
-  if(dados === 'com') rows = rows.filter(r => temDadosNoDia(r));
-  if(dados === 'sem') rows = rows.filter(r => !temDadosNoDia(r));
+  if(viewMode === 'dia'){
+    const dados = document.getElementById('f-dados').value;
+    let rows = rowsDoDia;
+    if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
+    if(gestor) rows = rows.filter(r => r.supervisor === gestor);
+    if(dados === 'com') rows = rows.filter(r => temDadosNoDia(r));
+    if(dados === 'sem') rows = rows.filter(r => !temDadosNoDia(r));
+    renderTable(rows);
+  }else{
+    let rows = linhasSemanaAgregadas;
+    if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
+    if(gestor) rows = rows.filter(r => r.supervisor === gestor);
+    renderTabelaSemana(rows);
+  }
+}
 
-  renderTable(rows);
+// ------------------------------------------------------------
+// Navegação por data (modo Dia = 1 dia por clique, modo Semana = 7 dias)
+// ------------------------------------------------------------
+function somarDias(dataStr, n){
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  // Meio-dia UTC pra somar/subtrair dias com segurança, sem risco de fuso
+  // horário empurrar a data pro dia errado.
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function inicioDaSemana(dataStr){
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
+  const diaSemana = d.getUTCDay(); // 0=domingo .. 6=sábado
+  const deslocamento = diaSemana === 0 ? -6 : 1 - diaSemana; // volta pra segunda-feira
+  return somarDias(dataStr, deslocamento);
+}
+function datasDaSemana(inicioStr){
+  return Array.from({length: 7}, (_, i) => somarDias(inicioStr, i));
 }
 
 function mudarDia(delta){
   const input = document.getElementById('f-data');
   if(!input.value) return;
-  // Monta a data em UTC (meio-dia, pra evitar qualquer problema de fuso
-  // horário virando o dia errado) só pra somar/subtrair 1 dia com segurança.
-  const [ano, mes, dia] = input.value.split('-').map(Number);
-  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
-  d.setUTCDate(d.getUTCDate() + delta);
-  const novoValor = d.toISOString().slice(0, 10);
-  input.value = novoValor;
+  const passo = viewMode === 'semana' ? delta * 7 : delta;
+  input.value = somarDias(input.value, passo);
+  atualizarPeriodo();
+}
+
+// ------------------------------------------------------------
+// Visão semanal: agrega allRows (várias datas) por colaborador, somando os
+// tempos das 3 fontes e contando dias problemáticos na semana selecionada.
+// ------------------------------------------------------------
+function agregarSemana(rowsSemana){
+  const porColaborador = new Map();
+  for(const r of rowsSemana){
+    const chave = r.colaborador_id;
+    if(!porColaborador.has(chave)){
+      porColaborador.set(chave, {
+        colaborador_id: r.colaborador_id, nome: r.nome, supervisor: r.supervisor,
+        tipo_colaborador: r.tipo_colaborador,
+        gclick_min: 0, tangerino_min: 0, wm_min: 0,
+        dias_com_dado: 0, dias_sem_lancamento: 0, dias_abaixo_lm: 0,
+        datasComRegistro: new Set(),
+      });
+    }
+    const agg = porColaborador.get(chave);
+    agg.datasComRegistro.add(r.data);
+    const gc = intervalParaMin(r.total_gclick) || 0;
+    const tg = intervalParaMin(r.horas_trabalhadas) || 0;
+    const wm = intervalParaMin(r.workmonitor_total) || 0;
+    agg.gclick_min += gc;
+    agg.tangerino_min += tg;
+    agg.wm_min += wm;
+    if(gc > 0 || tg > 0 || wm > 0) agg.dias_com_dado++;
+    if(r.classificacao === 'SEM LANCAMENTO') agg.dias_sem_lancamento++;
+    else if(r.classificacao === 'ABAIXO DO LM') agg.dias_abaixo_lm++;
+  }
+  return [...porColaborador.values()].map(agg => ({...agg, dias_totais: agg.datasComRegistro.size}));
+}
+
+function renderTheadDia(){
+  document.getElementById('thead-row').innerHTML = `
+    <th>Colaborador</th><th>Gestor</th><th>Total GCLICK</th><th>Horas Tangerino</th>
+    <th>Work Monitor</th><th>Classificação</th><th>Justificativa</th><th></th>`;
+}
+function renderTheadSemana(){
+  document.getElementById('thead-row').innerHTML = `
+    <th>Colaborador</th><th>Gestor</th><th>Dias c/ dado</th><th>Total GCLICK</th>
+    <th>Total Tangerino</th><th>Total WorkMonitor</th><th>Sem lançamento</th><th>Abaixo do LM</th>`;
+}
+
+function renderTabelaSemana(rows){
+  const tbody = document.getElementById('tbody');
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    currentFilteredRows = [];
+    return;
+  }
+  const ordenadas = [...rows].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  currentFilteredRows = ordenadas;
+  tbody.innerHTML = ordenadas.map(r => `
+    <tr>
+      <td>${escapeHtml(r.nome)}${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
+      <td>${fmt(r.supervisor ? escapeHtml(r.supervisor) : null)}</td>
+      <td>${r.dias_com_dado}/${r.dias_totais}</td>
+      <td>${r.gclick_min ? minParaHm(r.gclick_min, false) : '<span class="muted">—</span>'}</td>
+      <td>${r.tangerino_min ? minParaHm(r.tangerino_min, false) : '<span class="muted">—</span>'}</td>
+      <td>${r.wm_min ? minParaHm(r.wm_min, false) : '<span class="muted">—</span>'}</td>
+      <td>${r.dias_sem_lancamento ? `<span class="badge SEMLANCAMENTO">${r.dias_sem_lancamento}</span>` : '<span class="muted">0</span>'}</td>
+      <td>${r.dias_abaixo_lm ? `<span class="badge ABAIXODOLM">${r.dias_abaixo_lm}</span>` : '<span class="muted">0</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+function setViewMode(modo){
+  viewMode = modo;
+  document.getElementById('view-dia').classList.toggle('active', modo === 'dia');
+  document.getElementById('view-semana').classList.toggle('active', modo === 'semana');
+  document.getElementById('f-dados').style.display = modo === 'dia' ? '' : 'none';
   atualizarPeriodo();
 }
 
 function atualizarPeriodo(){
-  const dataSel = document.getElementById('f-data').value;
-  rowsDoDia = dataSel ? allRows.filter(r => r.data === dataSel) : allRows.filter(r => r.data === (allRows[0] && allRows[0].data));
-  const label = document.getElementById('period-label');
-  label.textContent = rowsDoDia.length ? `${rowsDoDia.length} colaborador(es) no dia` : '';
-  document.getElementById('empty-db-banner').style.display = (isConfigured && rowsDoDia.length === 0) ? 'block' : 'none';
-  populateSelect('f-gestor', rowsDoDia, 'supervisor');
+  const dataSel = document.getElementById('f-data').value || (allRows[0] && allRows[0].data);
+  document.getElementById('empty-db-banner').style.display = 'none';
+
+  if(viewMode === 'dia'){
+    renderTheadDia();
+    rowsDoDia = dataSel ? allRows.filter(r => r.data === dataSel) : [];
+    document.getElementById('period-label').textContent = rowsDoDia.length ? `${rowsDoDia.length} colaborador(es) no dia` : '';
+    document.getElementById('empty-db-banner').style.display = (isConfigured && rowsDoDia.length === 0) ? 'block' : 'none';
+    populateSelect('f-gestor', rowsDoDia, 'supervisor');
+  }else{
+    renderTheadSemana();
+    const inicio = dataSel ? inicioDaSemana(dataSel) : null;
+    datasSemanaAtual = inicio ? datasDaSemana(inicio) : [];
+    const rowsSemana = allRows.filter(r => datasSemanaAtual.includes(r.data));
+    linhasSemanaAgregadas = agregarSemana(rowsSemana);
+    document.getElementById('period-label').textContent = datasSemanaAtual.length
+      ? `Semana de ${fmtDataBr(datasSemanaAtual[0])} a ${fmtDataBr(datasSemanaAtual[6])}`
+      : '';
+    document.getElementById('empty-db-banner').style.display = (isConfigured && rowsSemana.length === 0) ? 'block' : 'none';
+    populateSelect('f-gestor', linhasSemanaAgregadas, 'supervisor');
+  }
   applyFilters();
+  tentarAplicarFiltroGestor();
+}
+
+// ------------------------------------------------------------
+// Identificação de gestor -- conveniência de exibição (lembra quem é você
+// no localStorage e já abre filtrado na sua equipe), NÃO é controle de
+// acesso: os dados continuam acessíveis por quem tiver o link, igual antes.
+// ------------------------------------------------------------
+async function carregarGestoresParaIdentidade(){
+  try{
+    const gestores = await sbGet('gestores', {select:'nome', status:'eq.ativo', order:'nome.asc'});
+    const sel = document.getElementById('quem-sou-select');
+    sel.innerHTML = '<option value="">Selecione seu nome...</option>' +
+      gestores.map(g => `<option value="${escapeHtml(g.nome)}">${escapeHtml(g.nome)}</option>`).join('');
+  }catch(err){
+    console.error(err);
+  }
+}
+
+function aplicarIdentidade(){
+  const banner = document.getElementById('quem-sou-banner');
+  const label = document.getElementById('meu-gestor-label');
+  if(meuGestor){
+    banner.style.display = 'none';
+    label.style.display = 'flex';
+    label.querySelector('.nome').textContent = meuGestor;
+  }else{
+    banner.style.display = 'flex';
+    label.style.display = 'none';
+  }
+}
+
+// Só aplica o filtro se o gestor escolhido tiver alguma opção correspondente
+// nesse período (senão o <select> ignora o valor e fica em "Todos").
+function tentarAplicarFiltroGestor(){
+  if(!meuGestor) return;
+  const sel = document.getElementById('f-gestor');
+  if(sel.value === meuGestor) return;
+  if([...sel.options].some(o => o.value === meuGestor)){
+    sel.value = meuGestor;
+    applyFilters();
+  }
+}
+
+function onSelecionarIdentidade(){
+  const valor = document.getElementById('quem-sou-select').value;
+  if(!valor) return;
+  meuGestor = valor;
+  localStorage.setItem('dashboard-meu-gestor', valor);
+  aplicarIdentidade();
+  tentarAplicarFiltroGestor();
+}
+
+function onTrocarIdentidade(){
+  meuGestor = '';
+  localStorage.removeItem('dashboard-meu-gestor');
+  document.getElementById('f-gestor').value = '';
+  aplicarIdentidade();
+  applyFilters();
+}
+
+// ------------------------------------------------------------
+// Exportar Excel -- gera um .xlsx da tabela como está na tela (respeitando
+// os filtros e o modo Dia/Semana atuais).
+// ------------------------------------------------------------
+function exportarExcel(){
+  if(typeof XLSX === 'undefined'){
+    alert('A biblioteca de exportação não carregou (verifique sua conexão) -- tente de novo.');
+    return;
+  }
+  if(!currentFilteredRows.length){
+    alert('Não há linhas pra exportar com os filtros atuais.');
+    return;
+  }
+  let dados, nomeArquivo;
+  if(viewMode === 'dia'){
+    const dataSel = document.getElementById('f-data').value;
+    dados = currentFilteredRows.map(r => ({
+      'Colaborador': r.nome,
+      'Gestor': r.supervisor || '',
+      'Total G-Click': fmtInterval(r.total_gclick) || '',
+      'Horas Tangerino': fmtInterval(r.horas_trabalhadas) || '',
+      'Work Monitor': fmtInterval(r.workmonitor_total) || '',
+      'Classificação': r.classificacao || '',
+      'Justificativa': r.ultima_justificativa || '',
+    }));
+    nomeArquivo = `dashboard_gestores_${dataSel || 'dia'}.xlsx`;
+  }else{
+    dados = currentFilteredRows.map(r => ({
+      'Colaborador': r.nome,
+      'Gestor': r.supervisor || '',
+      'Dias com dado': `${r.dias_com_dado}/${r.dias_totais}`,
+      'Total G-Click': r.gclick_min ? minParaHm(r.gclick_min, false) : '',
+      'Total Tangerino': r.tangerino_min ? minParaHm(r.tangerino_min, false) : '',
+      'Total WorkMonitor': r.wm_min ? minParaHm(r.wm_min, false) : '',
+      'Dias sem lançamento': r.dias_sem_lancamento,
+      'Dias abaixo do LM': r.dias_abaixo_lm,
+    }));
+    const ini = datasSemanaAtual[0] || 'semana';
+    const fim = datasSemanaAtual[6] || '';
+    nomeArquivo = `dashboard_gestores_semana_${ini}_a_${fim}.xlsx`;
+  }
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, viewMode === 'dia' ? 'Dia' : 'Semana');
+  XLSX.writeFile(wb, nomeArquivo);
 }
 
 async function load(){
@@ -515,7 +773,9 @@ async function load(){
     }
     if(isConfigured){
       setStatusPill(`Atualizado às ${new Date().toLocaleTimeString('pt-BR')}`);
+      carregarGestoresParaIdentidade();
     }
+    aplicarIdentidade();
     atualizarPeriodo();
   }catch(err){
     console.error(err);
@@ -683,6 +943,30 @@ function renderGraficoApps(apps){
     </div>`).join('');
 }
 
+function renderHistoricoRecente(row){
+  // Usa allRows (já carregado com até 5000 linhas de histórico, todas as
+  // datas) -- não precisa de nenhuma chamada nova ao Supabase.
+  const historico = allRows
+    .filter(r => r.colaborador_id === row.colaborador_id)
+    .sort((a, b) => b.data.localeCompare(a.data))
+    .slice(0, 14);
+  if(!historico.length) return '<div class="dh-empty">Sem histórico recente.</div>';
+  return `
+    <table class="dh-table">
+      <thead><tr><th>Data</th><th>G-Click</th><th>Tangerino</th><th>WorkMonitor</th><th>Classificação</th></tr></thead>
+      <tbody>
+        ${historico.map(r => `
+          <tr>
+            <td>${fmtDataBr(r.data)}</td>
+            <td>${fmt(fmtInterval(r.total_gclick))}</td>
+            <td>${fmt(fmtInterval(r.horas_trabalhadas))}</td>
+            <td>${fmt(fmtInterval(r.workmonitor_total))}</td>
+            <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
 function renderGraficoDistribuicao(produtivoMin, neutroMin, improdutivoMin){
   const total = (produtivoMin || 0) + (neutroMin || 0) + (improdutivoMin || 0);
   if(!total) return '<div class="dh-empty">Sem dados suficientes.</div>';
@@ -811,8 +1095,8 @@ async function abrirDetalhe(row){
       </div>
 
       <div class="dh-section" style="margin-bottom:4px;">
-        <h4>Comparativo Ponto x WorkMonitor x G-Click</h4>
-        ${montarComparativo(row, neo)}
+        <h4>Histórico recente (últimos 14 dias com registro)</h4>
+        ${renderHistoricoRecente(row)}
       </div>
     `;
     document.getElementById('dh-close-3').addEventListener('click', fecharDetalhe);
@@ -846,7 +1130,7 @@ let mostrarGestoresInativos = false;
 
 async function carregarGerenciar(){
   [gerenciarColabs, gerenciarGestores] = await Promise.all([
-    sbGet('colaboradores', {select:'id,nome,supervisor,status', order:'nome.asc'}),
+    sbGet('colaboradores', {select:'id,nome,supervisor,status,apelidos', order:'nome.asc'}),
     sbGet('gestores', {select:'id,nome,status', order:'nome.asc'}),
   ]);
   renderGerenciar();
@@ -916,11 +1200,17 @@ function renderGerenciar(){
 
     <div class="ger-section">
       <h4>Ativos (${ativos.length})</h4>
+      <div class="dh-meta" style="margin-bottom:8px;">
+        "Apelidos" são nomes alternativos (ex.: como o nome curto aparece no WorkMonitor) que
+        passam a identificar esse colaborador direto, sem risco de ficar ambíguo com ninguém.
+        Separe vários apelidos por vírgula.
+      </div>
       <div class="ger-list">
         ${ativos.length ? ativos.map(c => `
           <div class="ger-row" data-id="${c.id}">
             <div class="ger-nome">${escapeHtml(c.nome)}</div>
             <select class="ger-sup">${gestorOptionsHtml(c.supervisor || '')}</select>
+            <input class="ger-apelidos" type="text" placeholder="Apelidos (separados por vírgula)" value="${escapeHtml((c.apelidos || []).join(', '))}">
             <button class="ger-save">Salvar</button>
             <button class="ger-remove">Remover</button>
           </div>`).join('') : '<div class="dh-empty">Nenhum colaborador ativo.</div>'}
@@ -989,9 +1279,11 @@ function renderGerenciar(){
       const row = e.target.closest('.ger-row');
       const id = row.dataset.id;
       const valor = row.querySelector('.ger-sup').value.trim();
+      const apelidos = row.querySelector('.ger-apelidos').value
+        .split(',').map(a => a.trim()).filter(Boolean);
       btn.disabled = true; btn.textContent = 'Salvando...';
       try{
-        await sbWrite('colaboradores', 'PATCH', {supervisor: valor || null}, {id:`eq.${id}`});
+        await sbWrite('colaboradores', 'PATCH', {supervisor: valor || null, apelidos}, {id:`eq.${id}`});
         await carregarGerenciar();
         await load();
       }catch(err){
@@ -1124,6 +1416,11 @@ document.getElementById('f-dados').addEventListener('change', applyFilters);
 document.getElementById('f-data').addEventListener('change', atualizarPeriodo);
 document.getElementById('periodo-anterior').addEventListener('click', () => mudarDia(-1));
 document.getElementById('periodo-proximo').addEventListener('click', () => mudarDia(1));
+document.getElementById('view-dia').addEventListener('click', () => setViewMode('dia'));
+document.getElementById('view-semana').addEventListener('click', () => setViewMode('semana'));
+document.getElementById('exportar-btn').addEventListener('click', exportarExcel);
+document.getElementById('quem-sou-btn').addEventListener('click', onSelecionarIdentidade);
+document.getElementById('trocar-identidade-btn').addEventListener('click', onTrocarIdentidade);
 
 load();
 </script>
