@@ -135,6 +135,40 @@
   .modal-actions button.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
   .modal-error{color:var(--danger); font-size:12px; margin-top:8px; display:none;}
 
+  /* Tela de login (página cheia, substitui o dashboard até identificar) */
+  body.gate-open header, body.gate-open main, body.gate-open footer{display:none !important;}
+  .login-screen{
+    display:none; position:fixed; inset:0; z-index:200;
+    background:linear-gradient(160deg, #f4f6fa 0%, #e4e9f2 100%);
+    align-items:center; justify-content:center; padding:24px; overflow-y:auto;
+  }
+  .login-screen.open{display:flex;}
+  [data-theme="dark"] .login-screen{background:linear-gradient(160deg, #0f1420 0%, #161d2b 100%);}
+  .login-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    padding:40px 36px; width:100%; max-width:400px; box-shadow:0 10px 40px rgba(20,30,50,.14);
+    text-align:center;
+  }
+  .login-logo{margin:0 auto 8px; width:64px; height:64px;}
+  .login-wordmark{font-size:26px; font-weight:700; letter-spacing:.01em; margin-top:6px;}
+  .login-wordmark .w1{color:#1f6d7a;}
+  .login-wordmark .w2{color:#c1504a;}
+  [data-theme="dark"] .login-wordmark .w1{color:#3fa0b0;}
+  [data-theme="dark"] .login-wordmark .w2{color:#e07a74;}
+  .login-tagline{font-size:10px; letter-spacing:.14em; color:var(--muted); margin:2px 0 28px; text-transform:uppercase;}
+  .login-card h3{margin:0 0 6px; font-size:17px; text-align:left;}
+  .login-card p{margin:0 0 16px; color:var(--muted); font-size:13px; text-align:left;}
+  .login-card label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px; text-align:left;}
+  .login-card select{
+    width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    padding:10px 12px; border-radius:8px; font-size:14px;
+  }
+  .login-actions{margin-top:20px;}
+  .login-actions button.primary{
+    width:100%; background:var(--accent); border-color:var(--accent); color:#fff;
+    padding:11px; font-size:14px; border-radius:8px; font-weight:600;
+  }
+
   /* Modal de detalhe do colaborador */
   .detalhe-modal{max-width:900px;}
   .detalhe-modal .dh-header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px;}
@@ -199,7 +233,7 @@
   .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
 </head>
-<body>
+<body class="gate-open">
 
 <header>
   <div>
@@ -273,14 +307,23 @@
 
 <footer>Dashboard interno — Resilcon</footer>
 
-<div class="modal-overlay" id="quemsou-overlay">
-  <div class="modal">
-    <h3>Quem é você?</h3>
+<div class="login-screen" id="quemsou-overlay">
+  <div class="login-card">
+    <svg class="login-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="92" fill="none" stroke="#9aa0ab" stroke-width="6" stroke-linecap="round" stroke-dasharray="500 60"/>
+      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#1f6d7a" transform="rotate(0 100 100)"/>
+      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#c1504a" transform="rotate(90 100 100)"/>
+      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#1f6d7a" transform="rotate(180 100 100)"/>
+      <path d="M100,100 C100,55 145,15 185,15 C185,60 145,100 100,100 Z" fill="#c1504a" transform="rotate(270 100 100)"/>
+    </svg>
+    <div class="login-wordmark"><span class="w1">resil</span><span class="w2">con</span></div>
+    <div class="login-tagline">Contabilidade Consultiva</div>
+    <h3>Dashboard Gestores</h3>
     <p>Selecione seu nome pra abrir o dashboard já filtrado na sua equipe. Fica salvo neste navegador pros próximos acessos (dá pra trocar depois).</p>
     <label for="quemsou-select-gate">Seu nome</label>
     <select id="quemsou-select-gate"><option value="">Selecione seu nome...</option></select>
     <div class="modal-error" id="quemsou-error"></div>
-    <div class="modal-actions">
+    <div class="login-actions">
       <button class="primary" id="quemsou-entrar-btn">Entrar</button>
     </div>
   </div>
@@ -695,17 +738,23 @@ function aplicarIdentidade(){
   const label = document.getElementById('meu-gestor-label');
   if(!isConfigured){
     overlay.classList.remove('open');
+    document.body.classList.remove('gate-open');
     label.style.display = 'none';
     return;
   }
   if(meuGestor){
     overlay.classList.remove('open');
+    document.body.classList.remove('gate-open');
     label.style.display = 'flex';
     label.querySelector('.nome').textContent = meuGestor + (souDiretor(meuGestor) ? ' (Diretoria)' : '');
   }else{
     document.getElementById('quemsou-select-gate').value = '';
     document.getElementById('quemsou-error').style.display = 'none';
     overlay.classList.add('open');
+    // Esconde o dashboard inteiro (header/main/footer) enquanto não
+    // identificado -- a tela de login vira a única coisa na página,
+    // não só um modal por cima dos dados.
+    document.body.classList.add('gate-open');
     label.style.display = 'none';
   }
 }
