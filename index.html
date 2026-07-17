@@ -56,12 +56,11 @@
   .view-toggle-btn{border:none; border-radius:0; padding:7px 14px; font-size:13px; background:var(--panel-2); color:var(--muted); cursor:pointer;}
   .view-toggle-btn.active{background:var(--accent); color:#fff;}
   .view-toggle-btn:hover:not(.active){background:var(--border);}
-  #quem-sou-banner{display:none; align-items:center; gap:10px; flex-wrap:wrap;}
-  #quem-sou-banner select{
-    background:var(--panel); color:var(--text); border:1px solid var(--warn);
-    padding:7px 10px; border-radius:8px; font-size:13px;
-  }
   #meu-gestor-label{display:none; align-items:center; gap:8px; margin-bottom:18px; font-size:13px; color:var(--muted);}
+  #quemsou-overlay select{
+    width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    padding:9px 12px; border-radius:8px; font-size:13px; margin-top:6px;
+  }
 
   .badge{padding:3px 9px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block;}
   .badge.OK{background:rgba(28,138,82,.13); color:var(--ok);}
@@ -194,6 +193,8 @@
   .ger-row .ger-nome{flex:1; font-size:13px; font-weight:600; min-width:140px;}
   .ger-row select.ger-sup{width:170px;}
   .ger-row input.ger-apelidos{width:200px; font-size:12px;}
+  .ger-diretor-toggle{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--muted); white-space:nowrap; cursor:pointer;}
+  .ger-diretor-toggle input{margin:0;}
   .ger-row button{font-size:12px; padding:6px 10px;}
   .ger-toggle-link{background:none; border:none; color:var(--accent); font-size:12px; cursor:pointer; padding:0; margin-top:8px;}
 </style>
@@ -222,12 +223,6 @@
     Nenhum registro encontrado para o período selecionado.
   </div>
 
-  <div id="quem-sou-banner" class="info-banner">
-    <span>Pra ver direto sua equipe, selecione seu nome:</span>
-    <select id="quem-sou-select"><option value="">Selecione seu nome...</option></select>
-    <button id="quem-sou-btn">Entrar</button>
-    <span class="muted" style="font-size:12px;">(isso só filtra a visualização pra você — não restringe o acesso aos dados de quem tiver o link)</span>
-  </div>
   <div id="meu-gestor-label">
     Olá, <strong class="nome" style="color:var(--text);"></strong>
     <button class="ger-toggle-link" id="trocar-identidade-btn">Trocar</button>
@@ -277,6 +272,19 @@
 </main>
 
 <footer>Dashboard interno — Resilcon</footer>
+
+<div class="modal-overlay" id="quemsou-overlay">
+  <div class="modal">
+    <h3>Quem é você?</h3>
+    <p>Selecione seu nome pra abrir o dashboard já filtrado na sua equipe. Fica salvo neste navegador pros próximos acessos (dá pra trocar depois).</p>
+    <label for="quemsou-select-gate">Seu nome</label>
+    <select id="quemsou-select-gate"><option value="">Selecione seu nome...</option></select>
+    <div class="modal-error" id="quemsou-error"></div>
+    <div class="modal-actions">
+      <button class="primary" id="quemsou-entrar-btn">Entrar</button>
+    </div>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal">
@@ -655,38 +663,58 @@ function atualizarPeriodo(){
 }
 
 // ------------------------------------------------------------
-// Identificação de gestor -- conveniência de exibição (lembra quem é você
-// no localStorage e já abre filtrado na sua equipe), NÃO é controle de
-// acesso: os dados continuam acessíveis por quem tiver o link, igual antes.
+// Identificação de gestor -- um modal obrigatório (sem opção de fechar sem
+// escolher) aparece logo no início se não houver identidade salva neste
+// navegador; depois de escolhida, fica fixa (localStorage) nos próximos
+// acessos. IMPORTANTE: isso é conveniência de exibição, NÃO é controle de
+// acesso -- os dados continuam acessíveis por quem tiver o link, igual
+// antes (a chave usada aqui é pública). Gestores marcados como "Diretor"
+// (gestores.is_diretor) veem TODOS os colaboradores, sem filtro nenhum --
+// tratados como diretoria, que enxerga além da própria equipe.
 // ------------------------------------------------------------
+let gestoresIdentidadeCache = []; // [{nome, is_diretor}], só os ativos
+
+function souDiretor(nome){
+  const g = gestoresIdentidadeCache.find(g => g.nome === nome);
+  return !!(g && g.is_diretor);
+}
+
 async function carregarGestoresParaIdentidade(){
   try{
-    const gestores = await sbGet('gestores', {select:'nome', status:'eq.ativo', order:'nome.asc'});
-    const sel = document.getElementById('quem-sou-select');
-    sel.innerHTML = '<option value="">Selecione seu nome...</option>' +
-      gestores.map(g => `<option value="${escapeHtml(g.nome)}">${escapeHtml(g.nome)}</option>`).join('');
+    gestoresIdentidadeCache = await sbGet('gestores', {select:'nome,is_diretor', status:'eq.ativo', order:'nome.asc'});
+    const optionsHtml = '<option value="">Selecione seu nome...</option>' +
+      gestoresIdentidadeCache.map(g => `<option value="${escapeHtml(g.nome)}">${escapeHtml(g.nome)}${g.is_diretor ? ' (Diretoria)' : ''}</option>`).join('');
+    document.getElementById('quemsou-select-gate').innerHTML = optionsHtml;
   }catch(err){
     console.error(err);
   }
 }
 
 function aplicarIdentidade(){
-  const banner = document.getElementById('quem-sou-banner');
+  const overlay = document.getElementById('quemsou-overlay');
   const label = document.getElementById('meu-gestor-label');
+  if(!isConfigured){
+    overlay.classList.remove('open');
+    label.style.display = 'none';
+    return;
+  }
   if(meuGestor){
-    banner.style.display = 'none';
+    overlay.classList.remove('open');
     label.style.display = 'flex';
-    label.querySelector('.nome').textContent = meuGestor;
+    label.querySelector('.nome').textContent = meuGestor + (souDiretor(meuGestor) ? ' (Diretoria)' : '');
   }else{
-    banner.style.display = 'flex';
+    document.getElementById('quemsou-select-gate').value = '';
+    document.getElementById('quemsou-error').style.display = 'none';
+    overlay.classList.add('open');
     label.style.display = 'none';
   }
 }
 
-// Só aplica o filtro se o gestor escolhido tiver alguma opção correspondente
-// nesse período (senão o <select> ignora o valor e fica em "Todos").
+// Diretoria não filtra (vê todos). Gestor comum só é aplicado se tiver
+// alguma opção correspondente nesse período (senão o <select> ignora o
+// valor e fica em "Todos").
 function tentarAplicarFiltroGestor(){
-  if(!meuGestor) return;
+  if(!meuGestor || souDiretor(meuGestor)) return;
   const sel = document.getElementById('f-gestor');
   if(sel.value === meuGestor) return;
   if([...sel.options].some(o => o.value === meuGestor)){
@@ -695,9 +723,15 @@ function tentarAplicarFiltroGestor(){
   }
 }
 
-function onSelecionarIdentidade(){
-  const valor = document.getElementById('quem-sou-select').value;
-  if(!valor) return;
+function onEntrarIdentidade(){
+  const valor = document.getElementById('quemsou-select-gate').value;
+  const errorEl = document.getElementById('quemsou-error');
+  if(!valor){
+    errorEl.textContent = 'Selecione seu nome pra continuar.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  errorEl.style.display = 'none';
   meuGestor = valor;
   localStorage.setItem('dashboard-meu-gestor', valor);
   aplicarIdentidade();
@@ -763,6 +797,14 @@ async function load(){
   setStatusPill('Carregando...');
   document.getElementById('empty-db-banner').style.display = 'none';
   try{
+    // Carrega a lista de gestores (pro modal "Quem é você?") ANTES da
+    // tabela principal, pra decidir logo se o modal precisa abrir --
+    // não depende de esperar os dados do dia carregarem.
+    if(isConfigured){
+      await carregarGestoresParaIdentidade();
+    }
+    aplicarIdentidade();
+
     allRows = await fetchData();
     // datas mais recentes primeiro (já vem ordenado desc do backend); define
     // o período padrão como o dia mais recente com dado, sem duplicar linhas
@@ -773,9 +815,7 @@ async function load(){
     }
     if(isConfigured){
       setStatusPill(`Atualizado às ${new Date().toLocaleTimeString('pt-BR')}`);
-      carregarGestoresParaIdentidade();
     }
-    aplicarIdentidade();
     atualizarPeriodo();
   }catch(err){
     console.error(err);
@@ -1131,7 +1171,7 @@ let mostrarGestoresInativos = false;
 async function carregarGerenciar(){
   [gerenciarColabs, gerenciarGestores] = await Promise.all([
     sbGet('colaboradores', {select:'id,nome,supervisor,status,apelidos', order:'nome.asc'}),
-    sbGet('gestores', {select:'id,nome,status', order:'nome.asc'}),
+    sbGet('gestores', {select:'id,nome,status,is_diretor', order:'nome.asc'}),
   ]);
   renderGerenciar();
 }
@@ -1165,8 +1205,13 @@ function renderGerenciar(){
     <div class="ger-section">
       <h4>Gestores</h4>
       <div class="dh-meta" style="margin-bottom:8px;">A lista de gestores é fixa — cadastre aqui pra que eles apareçam no menu suspenso ao editar um colaborador.</div>
+      <div class="dh-meta" style="margin-bottom:8px;">
+        Marcar "Diretor" faz essa pessoa ver TODOS os colaboradores ao entrar no dashboard
+        (sem ficar restrita à própria equipe) -- é pra diretoria, que acompanha todo mundo.
+      </div>
       <div class="ger-add-form">
         <input id="ger-novo-gestor-nome" type="text" placeholder="Nome do gestor">
+        <label class="ger-diretor-toggle"><input type="checkbox" id="ger-novo-gestor-diretor"> Diretor</label>
         <button id="ger-add-gestor-btn">Adicionar gestor</button>
       </div>
       <div class="modal-error" id="ger-add-gestor-error"></div>
@@ -1174,6 +1219,7 @@ function renderGerenciar(){
         ${gestoresAtivos.length ? gestoresAtivos.map(g => `
           <div class="ger-row" data-gestor-id="${g.id}">
             <div class="ger-nome">${escapeHtml(g.nome)}</div>
+            <label class="ger-diretor-toggle"><input type="checkbox" class="ger-diretor-check" ${g.is_diretor ? 'checked' : ''}> Diretor</label>
             <button class="ger-gestor-remove">Remover</button>
           </div>`).join('') : '<div class="dh-empty">Nenhum gestor cadastrado.</div>'}
       </div>
@@ -1255,6 +1301,23 @@ function renderGerenciar(){
       }catch(err){
         alert(`Não foi possível remover: ${err.message}`);
         btn.disabled = false; btn.textContent = 'Remover';
+      }
+    });
+  });
+
+  body.querySelectorAll('.ger-diretor-check').forEach(chk => {
+    chk.addEventListener('change', async (e) => {
+      const row = e.target.closest('.ger-row');
+      const id = row.dataset.gestorId;
+      const marcado = e.target.checked;
+      e.target.disabled = true;
+      try{
+        await sbWrite('gestores', 'PATCH', {is_diretor: marcado}, {id:`eq.${id}`});
+        await carregarGerenciar();
+      }catch(err){
+        alert(`Não foi possível salvar: ${err.message}`);
+        e.target.checked = !marcado;
+        e.target.disabled = false;
       }
     });
   });
@@ -1361,6 +1424,7 @@ async function onAdicionarColaborador(){
 
 async function onAdicionarGestor(){
   const nomeEl = document.getElementById('ger-novo-gestor-nome');
+  const diretorEl = document.getElementById('ger-novo-gestor-diretor');
   const errorEl = document.getElementById('ger-add-gestor-error');
   errorEl.style.display = 'none';
   const nome = nomeEl.value.trim();
@@ -1374,10 +1438,11 @@ async function onAdicionarGestor(){
   try{
     // upsert por nome: se já existir (até um removido), reativa
     await sbWrite('gestores', 'POST',
-      {nome, status: 'ativo'},
+      {nome, status: 'ativo', is_diretor: diretorEl.checked},
       {on_conflict: 'nome'},
       'resolution=merge-duplicates,return=minimal');
     nomeEl.value = '';
+    diretorEl.checked = false;
     await carregarGerenciar();
   }catch(err){
     errorEl.textContent = `Não foi possível adicionar: ${err.message}`;
@@ -1419,7 +1484,7 @@ document.getElementById('periodo-proximo').addEventListener('click', () => mudar
 document.getElementById('view-dia').addEventListener('click', () => setViewMode('dia'));
 document.getElementById('view-semana').addEventListener('click', () => setViewMode('semana'));
 document.getElementById('exportar-btn').addEventListener('click', exportarExcel);
-document.getElementById('quem-sou-btn').addEventListener('click', onSelecionarIdentidade);
+document.getElementById('quemsou-entrar-btn').addEventListener('click', onEntrarIdentidade);
 document.getElementById('trocar-identidade-btn').addEventListener('click', onTrocarIdentidade);
 
 load();
