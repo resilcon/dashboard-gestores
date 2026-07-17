@@ -45,6 +45,12 @@
     padding:8px 12px; border-radius:8px; font-size:14px;
   }
   .period-bar .period-label{font-size:13px; color:var(--muted); margin-left:auto;}
+  .periodo-nav{
+    display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px; border-radius:8px; border:1px solid var(--border);
+    background:var(--panel-2); color:var(--text); font-size:18px; line-height:1; cursor:pointer;
+  }
+  .periodo-nav:hover{background:var(--accent); color:#fff; border-color:var(--accent);}
 
   .badge{padding:3px 9px; border-radius:100px; font-size:11px; font-weight:600; white-space:nowrap; display:inline-block;}
   .badge.OK{background:rgba(28,138,82,.13); color:var(--ok);}
@@ -205,7 +211,9 @@
 
   <div class="period-bar">
     <label for="f-data">Período</label>
+    <button type="button" id="periodo-anterior" class="periodo-nav" title="Dia anterior" aria-label="Dia anterior">&#8249;</button>
     <input id="f-data" type="date">
+    <button type="button" id="periodo-proximo" class="periodo-nav" title="Próximo dia" aria-label="Próximo dia">&#8250;</button>
     <span class="period-label" id="period-label"></span>
   </div>
 
@@ -468,6 +476,19 @@ function applyFilters(){
   if(dados === 'sem') rows = rows.filter(r => !temDadosNoDia(r));
 
   renderTable(rows);
+}
+
+function mudarDia(delta){
+  const input = document.getElementById('f-data');
+  if(!input.value) return;
+  // Monta a data em UTC (meio-dia, pra evitar qualquer problema de fuso
+  // horário virando o dia errado) só pra somar/subtrair 1 dia com segurança.
+  const [ano, mes, dia] = input.value.split('-').map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
+  d.setUTCDate(d.getUTCDate() + delta);
+  const novoValor = d.toISOString().slice(0, 10);
+  input.value = novoValor;
+  atualizarPeriodo();
 }
 
 function atualizarPeriodo(){
@@ -1101,6 +1122,8 @@ document.getElementById('f-busca').addEventListener('input', applyFilters);
 document.getElementById('f-gestor').addEventListener('change', applyFilters);
 document.getElementById('f-dados').addEventListener('change', applyFilters);
 document.getElementById('f-data').addEventListener('change', atualizarPeriodo);
+document.getElementById('periodo-anterior').addEventListener('click', () => mudarDia(-1));
+document.getElementById('periodo-proximo').addEventListener('click', () => mudarDia(1));
 
 load();
 </script>
