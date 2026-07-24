@@ -484,6 +484,12 @@ function fmtDataBr(dataStr){
   const [ano, mes, dia] = dataStr.split('-');
   return `${dia}/${mes}/${ano}`;
 }
+const DIAS_SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+function nomeDiaSemana(dataStr){
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
+  return DIAS_SEMANA[d.getUTCDay()];
+}
 function fmt(v){ return (v === null || v === undefined || v === '') ? '<span class="muted">—</span>' : v; }
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1057,6 +1063,85 @@ function renderHistoricoRecente(row){
     </table>`;
 }
 
+// ------------------------------------------------------------
+// Teclas & cliques (comparação p/ home office) -- usa allRows (metricas.teclas
+// / metricas.cliques, vindos de neocode_diario.metricas via vw_resumo_diario),
+// sem nenhuma chamada nova ao Supabase. Só existe pra dias processados depois
+// que essa captura foi ligada no script de extração -- dias antigos ficam sem
+// comparação, de forma explícita (não escondida).
+// ------------------------------------------------------------
+function fmtVariacaoMetrica(atual, anterior, dataAnterior){
+  if(atual == null) return '<span class="muted">Sem dado hoje</span>';
+  if(anterior == null){
+    return `<span class="n">${atual}</span>`;
+  }
+  if(anterior === 0){
+    return `<span class="n">${atual}</span> <span class="muted" style="font-size:11px;">(dia anterior sem base pra comparar)</span>`;
+  }
+  const variacao = ((atual - anterior) / anterior) * 100;
+  const sinal = variacao > 0 ? '+' : '';
+  const cor = variacao > 0 ? 'var(--ok)' : (variacao < 0 ? 'var(--danger)' : 'var(--muted)');
+  return `<span class="n">${atual}</span> <span style="color:${cor}; font-weight:700;">${sinal}${variacao.toFixed(0)}%</span>` +
+    (dataAnterior ? ` <span class="muted" style="font-size:11px;">vs ${fmtDataBr(dataAnterior)}</span>` : '');
+}
+
+function renderTeclasCliques(row){
+  const historico = allRows
+    .filter(r => r.colaborador_id === row.colaborador_id && r.metricas && (r.metricas.teclas != null || r.metricas.cliques != null))
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  if(!historico.length){
+    return '<div class="dh-empty">Ainda não há dados de teclas/cliques suficientes pra comparar (a captura desses números começou a partir de agora).</div>';
+  }
+
+  const hojeIdx = historico.findIndex(r => r.data === row.data);
+  const hoje = hojeIdx >= 0 ? historico[hojeIdx] : null;
+  const anteriorRow = hojeIdx > 0 ? historico[hojeIdx - 1] : null;
+
+  let compHtml = '<div class="dh-empty">Sem dado de teclas/cliques pra esse dia ainda.</div>';
+  if(hoje){
+    const teclasAtual = hoje.metricas.teclas ?? null;
+    const cliquesAtual = hoje.metricas.cliques ?? null;
+    const teclasAnterior = anteriorRow ? (anteriorRow.metricas.teclas ?? null) : null;
+    const cliquesAnterior = anteriorRow ? (anteriorRow.metricas.cliques ?? null) : null;
+    compHtml = `
+      <div class="dh-cards">
+        <div class="dh-card">
+          <div class="n">${fmtVariacaoMetrica(teclasAtual, teclasAnterior, anteriorRow ? anteriorRow.data : null)}</div>
+          <div class="l">Teclas digitadas hoje</div>
+        </div>
+        <div class="dh-card">
+          <div class="n">${fmtVariacaoMetrica(cliquesAtual, cliquesAnterior, anteriorRow ? anteriorRow.data : null)}</div>
+          <div class="l">Cliques hoje</div>
+        </div>
+      </div>`;
+  }
+
+  // Dia mais fraco da semana que contém row.data -- separado por métrica
+  // (o dia com menos teclas pode não ser o mesmo dia com menos cliques).
+  const datasSemana = datasDaSemana(inicioDaSemana(row.data));
+  const rowsSemana = historico.filter(r => datasSemana.includes(r.data));
+
+  function diaMaisFraco(campo){
+    const comDado = rowsSemana.filter(r => r.metricas[campo] != null);
+    if(!comDado.length) return null;
+    return comDado.reduce((a, b) => (a.metricas[campo] <= b.metricas[campo] ? a : b));
+  }
+  const fracoTeclas = diaMaisFraco('teclas');
+  const fracoCliques = diaMaisFraco('cliques');
+
+  let fracoHtml = '';
+  if(fracoTeclas || fracoCliques){
+    fracoHtml = `
+      <div class="dh-destaques" style="margin-top:12px;">
+        ${fracoTeclas ? `<div class="item"><div class="l">Dia c/ menos teclas na semana</div>${nomeDiaSemana(fracoTeclas.data)} (${fmtDataBr(fracoTeclas.data)}) — ${fracoTeclas.metricas.teclas} teclas</div>` : ''}
+        ${fracoCliques ? `<div class="item"><div class="l">Dia c/ menos cliques na semana</div>${nomeDiaSemana(fracoCliques.data)} (${fmtDataBr(fracoCliques.data)}) — ${fracoCliques.metricas.cliques} cliques</div>` : ''}
+      </div>`;
+  }
+
+  return compHtml + fracoHtml;
+}
+
 function renderGraficoDistribuicao(produtivoMin, neutroMin, improdutivoMin){
   const total = (produtivoMin || 0) + (neutroMin || 0) + (improdutivoMin || 0);
   if(!total) return '<div class="dh-empty">Sem dados suficientes.</div>';
@@ -1182,6 +1267,11 @@ async function abrirDetalhe(row){
           <div class="item"><div class="l">Horário final</div>${fmt(metricas.horario_final_destaque ? escapeHtml(String(metricas.horario_final_destaque)) : null)}</div>
           <div class="item"><div class="l">Maior atividade contínua</div>${fmt(metricas.maior_atividade_continua ? escapeHtml(String(metricas.maior_atividade_continua)) : null)}</div>
         </div>
+      </div>
+
+      <div class="dh-section">
+        <h4>Teclas &amp; cliques — comparação (home office)</h4>
+        ${renderTeclasCliques(row)}
       </div>
 
       <div class="dh-section" style="margin-bottom:4px;">
