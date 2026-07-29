@@ -603,6 +603,20 @@ function inicioDaSemana(dataStr){
 function datasDaSemana(inicioStr){
   return Array.from({length: 7}, (_, i) => somarDias(inicioStr, i));
 }
+function ehFimDeSemana(dataStr){
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
+  const dow = d.getUTCDay(); // 0=domingo, 6=sábado
+  return dow === 0 || dow === 6;
+}
+// Dia útil anterior a dataStr, pulando sábado/domingo -- usado na comparação
+// de teclas/cliques pra nunca comparar, por exemplo, uma segunda-feira com o
+// domingo (que não é dia útil e sempre vai vir zerado/sem sentido).
+function diaUtilAnterior(dataStr){
+  let d = somarDias(dataStr, -1);
+  while(ehFimDeSemana(d)) d = somarDias(d, -1);
+  return d;
+}
 
 function mudarDia(delta){
   const input = document.getElementById('f-data');
@@ -1094,9 +1108,13 @@ function renderTeclasCliques(row){
     return '<div class="dh-empty">Ainda não há dados de teclas/cliques suficientes pra comparar (a captura desses números começou a partir de agora).</div>';
   }
 
-  const hojeIdx = historico.findIndex(r => r.data === row.data);
-  const hoje = hojeIdx >= 0 ? historico[hojeIdx] : null;
-  const anteriorRow = hojeIdx > 0 ? historico[hojeIdx - 1] : null;
+  const hoje = historico.find(r => r.data === row.data) || null;
+  // NOVO: compara sempre com o último DIA ÚTIL anterior (pula sábado/domingo)
+  // -- antes comparava com a linha anterior do histórico, que podia ser um
+  // fim de semana (ex.: segunda-feira comparada com domingo, que não é dia
+  // útil e não tem sentido nenhum pra essa métrica).
+  const dataAnteriorUtil = diaUtilAnterior(row.data);
+  const anteriorRow = historico.find(r => r.data === dataAnteriorUtil) || null;
 
   let compHtml = '<div class="dh-empty">Sem dado de teclas/cliques pra esse dia ainda.</div>';
   if(hoje){
@@ -1104,22 +1122,27 @@ function renderTeclasCliques(row){
     const cliquesAtual = hoje.metricas.cliques ?? null;
     const teclasAnterior = anteriorRow ? (anteriorRow.metricas.teclas ?? null) : null;
     const cliquesAnterior = anteriorRow ? (anteriorRow.metricas.cliques ?? null) : null;
+    // NOVO: o relatório é sempre sobre o dia anterior (não "hoje"), então o
+    // rótulo mostra a data de verdade em vez de "hoje" -- o valor comparado
+    // (vs DD/MM/AAAA) já sai logo abaixo, via fmtVariacaoMetrica.
     compHtml = `
       <div class="dh-cards">
         <div class="dh-card">
           <div class="n">${fmtVariacaoMetrica(teclasAtual, teclasAnterior, anteriorRow ? anteriorRow.data : null)}</div>
-          <div class="l">Teclas digitadas hoje</div>
+          <div class="l">Teclas digitadas em ${fmtDataBr(row.data)}</div>
         </div>
         <div class="dh-card">
           <div class="n">${fmtVariacaoMetrica(cliquesAtual, cliquesAnterior, anteriorRow ? anteriorRow.data : null)}</div>
-          <div class="l">Cliques hoje</div>
+          <div class="l">Cliques em ${fmtDataBr(row.data)}</div>
         </div>
       </div>`;
   }
 
   // Dia mais fraco da semana que contém row.data -- separado por métrica
   // (o dia com menos teclas pode não ser o mesmo dia com menos cliques).
-  const datasSemana = datasDaSemana(inicioDaSemana(row.data));
+  // NOVO: exclui sábado/domingo -- não são dia útil, então sempre vêm
+  // zerados e não servem como "o dia mais fraco" de verdade.
+  const datasSemana = datasDaSemana(inicioDaSemana(row.data)).filter(d => !ehFimDeSemana(d));
   const rowsSemana = historico.filter(r => datasSemana.includes(r.data));
 
   function diaMaisFraco(campo){
