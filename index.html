@@ -45,6 +45,10 @@
     background:var(--panel-2); color:var(--text); border:1px solid var(--border);
     padding:8px 12px; border-radius:8px; font-size:14px;
   }
+  .period-bar select{
+    background:var(--panel-2); color:var(--text); border:1px solid var(--border);
+    padding:8px 12px; border-radius:8px; font-size:13px; max-width:220px;
+  }
   .period-bar .period-label{font-size:13px; color:var(--muted); margin-left:auto;}
   .periodo-nav{
     display:flex; align-items:center; justify-content:center;
@@ -272,14 +276,18 @@
   </div>
 
   <div class="period-bar">
-    <label for="f-data">Período</label>
+    <label for="f-data" id="lbl-data">Período</label>
     <button type="button" id="periodo-anterior" class="periodo-nav" title="Dia anterior" aria-label="Anterior">&#8249;</button>
     <input id="f-data" type="date">
+    <label for="f-data-fim" id="lbl-ate" style="display:none;">até</label>
+    <input id="f-data-fim" type="date" style="display:none;">
     <button type="button" id="periodo-proximo" class="periodo-nav" title="Próximo dia" aria-label="Próximo">&#8250;</button>
     <div class="view-toggle">
       <button type="button" id="view-dia" class="view-toggle-btn active">Dia</button>
       <button type="button" id="view-semana" class="view-toggle-btn">Semana</button>
+      <button type="button" id="view-periodo" class="view-toggle-btn">Período</button>
     </div>
+    <select id="f-colaborador-periodo" style="display:none;"><option value="">Todos os colaboradores</option></select>
     <span class="period-label" id="period-label"></span>
   </div>
 
@@ -308,7 +316,7 @@
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="8" class="empty">Carregando...</td></tr>
+        <tr><td colspan="10" class="empty">Carregando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -382,10 +390,18 @@ const DEMO_DATA = [
 let allRows = [];       // todas as linhas carregadas (várias datas, últimos 5000 registros)
 let rowsDoDia = [];     // linhas já filtradas pela data selecionada (modo "Dia")
 let currentFilteredRows = [];
-let viewMode = 'dia';               // 'dia' | 'semana'
+let viewMode = 'dia';               // 'dia' | 'semana' | 'periodo'
 let linhasSemanaAgregadas = [];     // 1 linha por colaborador, somando a semana (modo "Semana")
 let datasSemanaAtual = [];          // as 7 datas (seg a dom) da semana selecionada
 let meuGestor = localStorage.getItem('dashboard-meu-gestor') || '';
+
+// Modo "Período": intervalo de datas livre (ex.: janeiro a junho), com ou
+// sem 1 colaborador específico escolhido. Não reaproveita allRows (que só
+// guarda as últimas ~5000 linhas, uns 100 dias com todo mundo) -- busca
+// direto do Supabase já filtrado pelo intervalo, então funciona pra
+// qualquer período por maior que seja.
+let periodoRowsColaborador = [];    // 1 colaborador, 1 linha por dia no intervalo
+let periodoRowsAgregadas = [];      // "todos os colaboradores", 1 linha por colaborador somando o intervalo
 
 function setStatusPill(text){ document.getElementById('status-pill').textContent = text; }
 
@@ -419,6 +435,35 @@ async function sbGet(tabela, params){
   return await res.json();
 }
 
+// Busca paginada: o projeto Supabase limita cada resposta do PostgREST a
+// 1000 linhas (db-max-rows), IGNORANDO o parâmetro "limit" pedido -- testado
+// na prática (pedindo limit=5000, voltou só 1000, com Content-Range
+// "0-999/2332"). A visão "Período" com "Todos os colaboradores" precisa do
+// histórico inteiro do intervalo escolhido, que facilmente passa de 1000
+// linhas (ex.: 45 colaboradores × 6 meses ≈ 8000+ linhas) -- por isso essa
+// busca pagina de verdade em vez de confiar num "limit" alto de uma vez só.
+async function sbGetAll(tabela, params){
+  const TAMANHO_PAGINA = 1000;
+  let offset = 0;
+  let out = [];
+  while(true){
+    const qs = new URLSearchParams({...params, limit: String(TAMANHO_PAGINA), offset: String(offset)}).toString();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${tabela}?${qs}`, {
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    if(!res.ok) throw new Error(`Erro ${res.status} ao consultar ${tabela}`);
+    const pagina = await res.json();
+    out = out.concat(pagina);
+    if(pagina.length < TAMANHO_PAGINA) break; // última página
+    offset += TAMANHO_PAGINA;
+    if(offset > 200000) break; // trava de segurança, não deveria ser alcançada na prática
+  }
+  return out;
+}
+
 // POST/PATCH genérico (usado pelo gerenciamento de colaboradores)
 async function sbWrite(tabela, method, body, params, prefer){
   const qs = params ? '?' + new URLSearchParams(params).toString() : '';
@@ -445,10 +490,13 @@ async function fetchData(){
     setStatusPill('Modo demonstração');
     return DEMO_DATA;
   }
-  // limit alto pra sempre trazer o histórico inteiro (visão semanal e o
-  // histórico recente no modal do colaborador dependem disso) -- com ~45
-  // colaboradores por dia, 5000 linhas cobre mais de 100 dias de histórico.
-  return await sbGet(VIEW, {select:'*', order:'data.desc', limit:'5000'});
+  // Traz o histórico inteiro (visão Semana e o histórico recente no modal do
+  // colaborador dependem disso). ANTES pedia limit=5000 aqui, mas o projeto
+  // Supabase limita cada resposta do PostgREST a 1000 linhas de qualquer
+  // forma (testado na prática) -- ou seja, isso sempre trouxe só as 1000
+  // linhas mais recentes (~22 dias com ~45 colaboradores/dia), nunca os
+  // "100+ dias" que o comentário antigo dizia. Agora pagina de verdade.
+  return await sbGetAll(VIEW, {select:'*', order:'data.desc'});
 }
 
 // ------------------------------------------------------------
@@ -519,24 +567,30 @@ function renderJustificativaCell(r){
 function renderTable(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
     currentFilteredRows = [];
     return;
   }
   const ordenadas = [...rows].sort((a,b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
   currentFilteredRows = ordenadas;
-  tbody.innerHTML = ordenadas.map((r, i) => `
+  tbody.innerHTML = ordenadas.map((r, i) => {
+    const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
+    const wmMin = intervalParaMin(r.workmonitor_total);
+    const p = pctSobrePonto(wmMin, tangerinoMin);
+    return `
     <tr>
       <td><button class="colab-link" data-idx="${i}">${escapeHtml(r.nome)}</button>${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
       <td>${fmt(r.supervisor ? escapeHtml(r.supervisor) : null)}</td>
       <td>${fmt(fmtInterval(r.total_gclick))}</td>
       <td>${fmt(fmtInterval(r.horas_trabalhadas))}</td>
       <td>${fmt(fmtInterval(r.workmonitor_total))}</td>
+      <td${classePctPonto(p)}>${fmtPctPonto(p)}</td>
       <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
       <td>${renderJustificativaCell(r)}</td>
       <td>${r.data ? `<button class="justify-btn" data-jidx="${i}">Justificar</button>` : ''}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   tbody.querySelectorAll('.colab-link').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -574,11 +628,24 @@ function applyFilters(){
     if(dados === 'com') rows = rows.filter(r => temDadosNoDia(r));
     if(dados === 'sem') rows = rows.filter(r => !temDadosNoDia(r));
     renderTable(rows);
-  }else{
+  }else if(viewMode === 'semana'){
     let rows = linhasSemanaAgregadas;
     if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
     if(gestor) rows = rows.filter(r => r.supervisor === gestor);
     renderTabelaSemana(rows);
+  }else{
+    // 'periodo' -- com 1 colaborador escolhido, busca/gestor não se aplicam
+    // (já é 1 pessoa só); com "Todos os colaboradores", reaproveita a mesma
+    // tabela agregada da visão Semana.
+    const colabId = document.getElementById('f-colaborador-periodo').value;
+    if(colabId){
+      renderTabelaPeriodoColaborador(periodoRowsColaborador);
+    }else{
+      let rows = periodoRowsAgregadas;
+      if(busca) rows = rows.filter(r => (r.nome || '').toLowerCase().includes(busca));
+      if(gestor) rows = rows.filter(r => r.supervisor === gestor);
+      renderTabelaSemana(rows);
+    }
   }
 }
 
@@ -630,9 +697,13 @@ function mudarDia(delta){
 // Visão semanal: agrega allRows (várias datas) por colaborador, somando os
 // tempos das 3 fontes e contando dias problemáticos na semana selecionada.
 // ------------------------------------------------------------
-function agregarSemana(rowsSemana){
+// Renomeada de agregarSemana pra agregarPeriodo -- a lógica nunca dependeu
+// de serem exatamente 7 dias, só soma o que vier em rowsPeriodo, então serve
+// igual pra visão "Semana" (7 datas) e pra visão "Período" (intervalo
+// arbitrário, ex.: janeiro a junho).
+function agregarPeriodo(rowsPeriodo){
   const porColaborador = new Map();
-  for(const r of rowsSemana){
+  for(const r of rowsPeriodo){
     const chave = r.colaborador_id;
     if(!porColaborador.has(chave)){
       porColaborador.set(chave, {
@@ -661,24 +732,30 @@ function agregarSemana(rowsSemana){
 function renderTheadDia(){
   document.getElementById('thead-row').innerHTML = `
     <th>Colaborador</th><th>Gestor</th><th>Total GCLICK</th><th>Horas Tangerino</th>
-    <th>Work Monitor</th><th>Classificação</th><th>Justificativa</th><th></th>`;
+    <th>Work Monitor</th><th>% Ponto</th><th>Classificação</th><th>Justificativa</th><th></th>`;
 }
 function renderTheadSemana(){
   document.getElementById('thead-row').innerHTML = `
     <th>Colaborador</th><th>Gestor</th><th>Dias c/ dado</th><th>Total GCLICK</th>
-    <th>Total Tangerino</th><th>Total WorkMonitor</th><th>Sem lançamento</th><th>Abaixo do LM</th>`;
+    <th>Total Tangerino</th><th>Total WorkMonitor</th><th>% Ponto</th><th>Sem lançamento</th><th>Abaixo do LM</th>`;
+}
+function renderTheadPeriodoColaborador(){
+  document.getElementById('thead-row').innerHTML = `
+    <th>Data</th><th>Dia</th><th>G-Click</th><th>Tangerino</th><th>Work Monitor</th><th>% Ponto</th><th>Classificação</th>`;
 }
 
 function renderTabelaSemana(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
     currentFilteredRows = [];
     return;
   }
   const ordenadas = [...rows].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
   currentFilteredRows = ordenadas;
-  tbody.innerHTML = ordenadas.map(r => `
+  tbody.innerHTML = ordenadas.map(r => {
+    const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null);
+    return `
     <tr>
       <td>${escapeHtml(r.nome)}${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
       <td>${fmt(r.supervisor ? escapeHtml(r.supervisor) : null)}</td>
@@ -686,18 +763,147 @@ function renderTabelaSemana(rows){
       <td>${r.gclick_min ? minParaHm(r.gclick_min, false) : '<span class="muted">—</span>'}</td>
       <td>${r.tangerino_min ? minParaHm(r.tangerino_min, false) : '<span class="muted">—</span>'}</td>
       <td>${r.wm_min ? minParaHm(r.wm_min, false) : '<span class="muted">—</span>'}</td>
+      <td${classePctPonto(p)}>${fmtPctPonto(p)}</td>
       <td>${r.dias_sem_lancamento ? `<span class="badge SEMLANCAMENTO">${r.dias_sem_lancamento}</span>` : '<span class="muted">0</span>'}</td>
       <td>${r.dias_abaixo_lm ? `<span class="badge ABAIXODOLM">${r.dias_abaixo_lm}</span>` : '<span class="muted">0</span>'}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
+}
+
+// ------------------------------------------------------------
+// Visão "Período" com 1 colaborador específico selecionado: 1 linha por dia
+// no intervalo inteiro (não limitado a 14 dias como o histórico do modal de
+// detalhe) -- é a visão pensada pro caso "ver os lançamentos do colaborador
+// X de janeiro a junho".
+// ------------------------------------------------------------
+function renderTabelaPeriodoColaborador(rows){
+  const tbody = document.getElementById('tbody');
+  if(rows.length === 0){
+    tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum lançamento encontrado nesse período.</td></tr>';
+    currentFilteredRows = [];
+    return;
+  }
+  const ordenadas = [...rows].sort((a, b) => a.data.localeCompare(b.data));
+  currentFilteredRows = ordenadas;
+  tbody.innerHTML = ordenadas.map(r => {
+    const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
+    const wmMin = intervalParaMin(r.workmonitor_total);
+    const p = pctSobrePonto(wmMin, tangerinoMin);
+    return `
+    <tr>
+      <td>${fmtDataBr(r.data)}</td>
+      <td class="muted">${nomeDiaSemana(r.data)}</td>
+      <td>${fmt(fmtInterval(r.total_gclick))}</td>
+      <td>${fmt(fmtInterval(r.horas_trabalhadas))}</td>
+      <td>${fmt(fmtInterval(r.workmonitor_total))}</td>
+      <td${classePctPonto(p)}>${fmtPctPonto(p)}</td>
+      <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
+    </tr>`;
+  }).join('');
 }
 
 function setViewMode(modo){
   viewMode = modo;
   document.getElementById('view-dia').classList.toggle('active', modo === 'dia');
   document.getElementById('view-semana').classList.toggle('active', modo === 'semana');
+  document.getElementById('view-periodo').classList.toggle('active', modo === 'periodo');
   document.getElementById('f-dados').style.display = modo === 'dia' ? '' : 'none';
-  atualizarPeriodo();
+
+  const ehPeriodo = modo === 'periodo';
+  document.getElementById('lbl-data').textContent = ehPeriodo ? 'De' : 'Período';
+  document.getElementById('f-data-fim').style.display = ehPeriodo ? '' : 'none';
+  document.getElementById('lbl-ate').style.display = ehPeriodo ? '' : 'none';
+  document.getElementById('f-colaborador-periodo').style.display = ehPeriodo ? '' : 'none';
+  document.getElementById('periodo-anterior').style.display = ehPeriodo ? 'none' : '';
+  document.getElementById('periodo-proximo').style.display = ehPeriodo ? 'none' : '';
+
+  if(ehPeriodo){
+    const fimEl = document.getElementById('f-data-fim');
+    if(!fimEl.value) fimEl.value = document.getElementById('f-data').value;
+    atualizarPeriodoIntervalo();
+  }else{
+    atualizarPeriodo();
+  }
+}
+
+// Popula o seletor de colaborador da visão "Período" com os nomes já vistos
+// em allRows (sem precisar de uma chamada nova ao Supabase pra isso).
+function populateColaboradorSelect(){
+  const select = document.getElementById('f-colaborador-periodo');
+  const atual = select.value;
+  const vistos = new Map();
+  for(const r of allRows){
+    if(r.colaborador_id && !vistos.has(r.colaborador_id)) vistos.set(r.colaborador_id, r.nome);
+  }
+  const pares = [...vistos.entries()].sort((a, b) => (a[1] || '').localeCompare(b[1] || '', 'pt-BR'));
+  select.innerHTML = '<option value="">Todos os colaboradores</option>' +
+    pares.map(([id, nome]) => `<option value="${escapeHtml(id)}">${escapeHtml(nome)}</option>`).join('');
+  select.value = atual;
+}
+
+// ------------------------------------------------------------
+// Visão "Período": busca dedicada no Supabase, filtrada pelo intervalo
+// (e opcionalmente por 1 colaborador), em vez de depender do cache de até
+// 5000 linhas de allRows -- necessário porque um intervalo de vários meses
+// com todo mundo facilmente passa de 5000 linhas (ex.: 45 colaboradores × 6
+// meses ≈ 8000+ linhas).
+// ------------------------------------------------------------
+async function atualizarPeriodoIntervalo(){
+  const inicio = document.getElementById('f-data').value;
+  const fim = document.getElementById('f-data-fim').value;
+  document.getElementById('empty-db-banner').style.display = 'none';
+  renderTheadSemana(); // thead default (visão "todos") -- trocado abaixo se for 1 colaborador só
+
+  if(!inicio || !fim){
+    document.getElementById('period-label').textContent = 'Escolha as duas datas do período';
+    return;
+  }
+  if(fim < inicio){
+    document.getElementById('period-label').textContent = 'A data final precisa ser depois da inicial';
+    return;
+  }
+  document.getElementById('period-label').textContent = `${fmtDataBr(inicio)} a ${fmtDataBr(fim)}`;
+
+  const colabId = document.getElementById('f-colaborador-periodo').value;
+  if(colabId) renderTheadPeriodoColaborador();
+
+  if(!isConfigured){
+    // Modo demonstração não tem histórico suficiente pra um intervalo livre.
+    periodoRowsColaborador = [];
+    periodoRowsAgregadas = [];
+    applyFilters();
+    return;
+  }
+
+  try{
+    if(colabId){
+      periodoRowsColaborador = await sbGetAll(VIEW, {
+        select: '*',
+        colaborador_id: `eq.${colabId}`,
+        and: `(data.gte.${inicio},data.lte.${fim})`,
+        order: 'data.asc',
+      });
+      periodoRowsAgregadas = [];
+      document.getElementById('empty-db-banner').style.display = periodoRowsColaborador.length === 0 ? 'block' : 'none';
+    }else{
+      const rowsIntervalo = await sbGetAll(VIEW, {
+        select: '*',
+        and: `(data.gte.${inicio},data.lte.${fim})`,
+        order: 'data.asc',
+      });
+      periodoRowsAgregadas = agregarPeriodo(rowsIntervalo);
+      periodoRowsColaborador = [];
+      populateSelect('f-gestor', periodoRowsAgregadas, 'supervisor');
+      document.getElementById('empty-db-banner').style.display = periodoRowsAgregadas.length === 0 ? 'block' : 'none';
+    }
+  }catch(err){
+    console.error(err);
+    document.getElementById('tbody').innerHTML = `<tr><td colspan="10" class="empty">Erro ao carregar período: ${escapeHtml(err.message)}</td></tr>`;
+    return;
+  }
+  applyFilters();
+  tentarAplicarFiltroGestor();
 }
 
 function atualizarPeriodo(){
@@ -715,7 +921,7 @@ function atualizarPeriodo(){
     const inicio = dataSel ? inicioDaSemana(dataSel) : null;
     datasSemanaAtual = inicio ? datasDaSemana(inicio) : [];
     const rowsSemana = allRows.filter(r => datasSemanaAtual.includes(r.data));
-    linhasSemanaAgregadas = agregarSemana(rowsSemana);
+    linhasSemanaAgregadas = agregarPeriodo(rowsSemana);
     document.getElementById('period-label').textContent = datasSemanaAtual.length
       ? `Semana de ${fmtDataBr(datasSemanaAtual[0])} a ${fmtDataBr(datasSemanaAtual[6])}`
       : '';
@@ -838,11 +1044,12 @@ function exportarExcel(){
       'Total G-Click': fmtInterval(r.total_gclick) || '',
       'Horas Tangerino': fmtInterval(r.horas_trabalhadas) || '',
       'Work Monitor': fmtInterval(r.workmonitor_total) || '',
+      '% Ponto (WM/Tangerino)': (() => { const p = pctSobrePonto(intervalParaMin(r.workmonitor_total), intervalParaMin(r.horas_trabalhadas)); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
       'Classificação': r.classificacao || '',
       'Justificativa': r.ultima_justificativa || '',
     }));
     nomeArquivo = `dashboard_gestores_${dataSel || 'dia'}.xlsx`;
-  }else{
+  }else if(viewMode === 'semana'){
     dados = currentFilteredRows.map(r => ({
       'Colaborador': r.nome,
       'Gestor': r.supervisor || '',
@@ -850,12 +1057,50 @@ function exportarExcel(){
       'Total G-Click': r.gclick_min ? minParaHm(r.gclick_min, false) : '',
       'Total Tangerino': r.tangerino_min ? minParaHm(r.tangerino_min, false) : '',
       'Total WorkMonitor': r.wm_min ? minParaHm(r.wm_min, false) : '',
+      '% Ponto (WM/Tangerino)': (() => { const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
       'Dias sem lançamento': r.dias_sem_lancamento,
       'Dias abaixo do LM': r.dias_abaixo_lm,
     }));
     const ini = datasSemanaAtual[0] || 'semana';
     const fim = datasSemanaAtual[6] || '';
     nomeArquivo = `dashboard_gestores_semana_${ini}_a_${fim}.xlsx`;
+  }else{
+    // 'periodo'
+    const inicioSel = document.getElementById('f-data').value || 'inicio';
+    const fimSel = document.getElementById('f-data-fim').value || 'fim';
+    const colabId = document.getElementById('f-colaborador-periodo').value;
+    if(colabId){
+      dados = currentFilteredRows.map(r => {
+        const p = pctSobrePonto(intervalParaMin(r.workmonitor_total), intervalParaMin(r.horas_trabalhadas));
+        return {
+          'Data': fmtDataBr(r.data),
+          'Dia da semana': nomeDiaSemana(r.data),
+          'G-Click': fmtInterval(r.total_gclick) || '',
+          'Tangerino': fmtInterval(r.horas_trabalhadas) || '',
+          'Work Monitor': fmtInterval(r.workmonitor_total) || '',
+          '% Ponto (WM/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
+          'Classificação': r.classificacao || '',
+        };
+      });
+      const nomeColab = (currentFilteredRows[0] && currentFilteredRows[0].nome) || 'colaborador';
+      nomeArquivo = `dashboard_gestores_${nomeColab.replace(/\s+/g, '_')}_${inicioSel}_a_${fimSel}.xlsx`;
+    }else{
+      dados = currentFilteredRows.map(r => {
+        const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null);
+        return {
+          'Colaborador': r.nome,
+          'Gestor': r.supervisor || '',
+          'Dias com dado': `${r.dias_com_dado}/${r.dias_totais}`,
+          'Total G-Click': r.gclick_min ? minParaHm(r.gclick_min, false) : '',
+          'Total Tangerino': r.tangerino_min ? minParaHm(r.tangerino_min, false) : '',
+          'Total WorkMonitor': r.wm_min ? minParaHm(r.wm_min, false) : '',
+          '% Ponto (WM/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
+          'Dias sem lançamento': r.dias_sem_lancamento,
+          'Dias abaixo do LM': r.dias_abaixo_lm,
+        };
+      });
+      nomeArquivo = `dashboard_gestores_periodo_${inicioSel}_a_${fimSel}.xlsx`;
+    }
   }
   const ws = XLSX.utils.json_to_sheet(dados);
   const wb = XLSX.utils.book_new();
@@ -883,14 +1128,15 @@ async function load(){
     if(!dataInput.value && allRows.length){
       dataInput.value = allRows[0].data;
     }
+    populateColaboradorSelect();
     if(isConfigured){
       setStatusPill(`Atualizado às ${new Date().toLocaleTimeString('pt-BR')}`);
     }
-    atualizarPeriodo();
+    if(viewMode === 'periodo') atualizarPeriodoIntervalo(); else atualizarPeriodo();
   }catch(err){
     console.error(err);
     document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="8" class="empty">Erro ao carregar dados: ${err.message}</td></tr>`;
+      `<tr><td colspan="10" class="empty">Erro ao carregar dados: ${err.message}</td></tr>`;
     setStatusPill('Erro ao carregar');
   }
 }
@@ -978,6 +1224,21 @@ function pct(min, total){
   return Math.max(0, Math.min(100, (min / total) * 100));
 }
 
+// % sobre o Ponto -- Tangerino é sempre a base (100%); abaixo de 85% (o mesmo
+// limiar do "LM" usado na classificação principal) fica destacado em
+// vermelho. Elevado a nível de módulo (antes só existia dentro de
+// montarComparativo) pra ser reaproveitado também na tabela principal, na
+// visão "Semana" e na nova visão "Período" -- mesma fórmula em todo lugar.
+function pctSobrePonto(min, tangerinoMin){
+  return (min === null || min === undefined || !tangerinoMin) ? null : (min / tangerinoMin) * 100;
+}
+function fmtPctPonto(p){
+  return p === null ? '<span class="muted">—</span>' : `${p.toFixed(2).replace('.', ',')}%`;
+}
+function classePctPonto(p){
+  return (p !== null && p < 85) ? ' class="destaque-baixo"' : '';
+}
+
 function montarComparativo(row, neo){
   const tangerinoMin = intervalParaMin(row.horas_trabalhadas);
   const wmMin = intervalParaMin(row.workmonitor_total) ?? (neo ? intervalParaMin(neo.total) : null);
@@ -990,16 +1251,13 @@ function montarComparativo(row, neo){
       <td>${min === null || min === undefined ? '<span class="muted">sem dado suficiente</span>' : minParaHm(min, false)}</td>
     </tr>`;
 
-  // % sobre o Ponto -- Tangerino é sempre a base (100%); abaixo de 85% (o
-  // mesmo limiar do "LM" usado na classificação principal) fica destacado
-  // em vermelho, igual à célula 77,16% que aparece em vermelho na planilha.
-  const pctSobrePonto = (min) => (min === null || min === undefined || !tangerinoMin) ? null : (min / tangerinoMin) * 100;
-  const fmtPct = (p) => p === null ? '<span class="muted">—</span>' : `${p.toFixed(2).replace('.', ',')}%`;
-  const classePct = (p) => (p !== null && p < 85) ? ' class="destaque-baixo"' : '';
+  const pctSobrePontoLocal = (min) => pctSobrePonto(min, tangerinoMin);
+  const fmtPct = fmtPctPonto;
+  const classePct = classePctPonto;
 
-  const pctTangerino = pctSobrePonto(tangerinoMin);
-  const pctWm = pctSobrePonto(wmMin);
-  const pctGclick = pctSobrePonto(gclickMin);
+  const pctTangerino = pctSobrePontoLocal(tangerinoMin);
+  const pctWm = pctSobrePontoLocal(wmMin);
+  const pctGclick = pctSobrePontoLocal(gclickMin);
 
   const diffs = [
     ['WorkMonitor vs. Tangerino', diff(wmMin, tangerinoMin)],
@@ -1641,11 +1899,16 @@ document.getElementById('refresh-btn').addEventListener('click', load);
 document.getElementById('f-busca').addEventListener('input', applyFilters);
 document.getElementById('f-gestor').addEventListener('change', applyFilters);
 document.getElementById('f-dados').addEventListener('change', applyFilters);
-document.getElementById('f-data').addEventListener('change', atualizarPeriodo);
+document.getElementById('f-data').addEventListener('change', () => {
+  if(viewMode === 'periodo') atualizarPeriodoIntervalo(); else atualizarPeriodo();
+});
+document.getElementById('f-data-fim').addEventListener('change', atualizarPeriodoIntervalo);
+document.getElementById('f-colaborador-periodo').addEventListener('change', atualizarPeriodoIntervalo);
 document.getElementById('periodo-anterior').addEventListener('click', () => mudarDia(-1));
 document.getElementById('periodo-proximo').addEventListener('click', () => mudarDia(1));
 document.getElementById('view-dia').addEventListener('click', () => setViewMode('dia'));
 document.getElementById('view-semana').addEventListener('click', () => setViewMode('semana'));
+document.getElementById('view-periodo').addEventListener('click', () => setViewMode('periodo'));
 document.getElementById('exportar-btn').addEventListener('click', exportarExcel);
 document.getElementById('quemsou-entrar-btn').addEventListener('click', onEntrarIdentidade);
 document.getElementById('trocar-identidade-btn').addEventListener('click', onTrocarIdentidade);
