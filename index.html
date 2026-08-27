@@ -95,7 +95,15 @@
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.03em;
     color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--border); white-space:nowrap;
   }
+  thead th.th-sort{cursor:pointer; user-select:none;}
+  thead th.th-sort:hover{color:var(--text);}
+  thead th.th-sort .sort-seta{color:var(--accent); margin-left:3px; font-size:10px;}
   tbody td{padding:12px 14px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; white-space:nowrap;}
+  tbody td.destaque-baixo{color:var(--danger); font-weight:700; background:rgba(178,58,53,.08);}
+  tfoot td{padding:12px 14px; font-size:13px; vertical-align:middle; white-space:nowrap; background:var(--panel-2); border-top:2px solid var(--border);}
+  tfoot td.tfoot-label{color:var(--muted); font-weight:600; text-align:right;}
+  tfoot td.destaque-baixo{color:var(--danger); background:rgba(178,58,53,.08);}
+  tfoot td.tfoot-media{font-weight:700;}
   tbody tr:last-child td{border-bottom:none;}
   tbody tr:hover{background:var(--panel-2);}
   .colab-link{background:none; border:none; padding:0; color:var(--accent); font-weight:600; font-size:13px; cursor:pointer; text-align:left; font-family:inherit;}
@@ -318,6 +326,7 @@
       <tbody id="tbody">
         <tr><td colspan="10" class="empty">Carregando...</td></tr>
       </tbody>
+      <tfoot id="tfoot"></tfoot>
     </table>
   </div>
 </main>
@@ -538,6 +547,13 @@ function nomeDiaSemana(dataStr){
   const d = new Date(Date.UTC(ano, mes - 1, dia, 12));
   return DIAS_SEMANA[d.getUTCDay()];
 }
+// Índice do dia da semana (0=domingo..6=sábado) -- usado só pra ordenar a
+// coluna "Dia" da visão Período/colaborador (ordena Dom,Seg,Ter... em vez de
+// alfabético, que ficaria sem sentido nenhum: "Domingo" antes de "Quarta").
+function diaSemanaIndice(dataStr){
+  const [ano, mes, dia] = dataStr.split('-').map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia, 12)).getUTCDay();
+}
 function fmt(v){ return (v === null || v === undefined || v === '') ? '<span class="muted">—</span>' : v; }
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -568,15 +584,19 @@ function renderTable(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
     tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    document.getElementById('tfoot').innerHTML = '';
     currentFilteredRows = [];
     return;
   }
-  const ordenadas = [...rows].sort((a,b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  const ordenadas = ordenarLinhas(rows, sortDia, valorOrdenavelDia,
+    rs => [...rs].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')));
   currentFilteredRows = ordenadas;
+  const pctValoresDia = [];
   tbody.innerHTML = ordenadas.map((r, i) => {
     const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
     const gclickMin = intervalParaMin(r.total_gclick);
     const p = pctSobrePonto(gclickMin, tangerinoMin);
+    pctValoresDia.push(p);
     return `
     <tr>
       <td><button class="colab-link" data-idx="${i}">${escapeHtml(r.nome)}</button>${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
@@ -591,6 +611,7 @@ function renderTable(rows){
     </tr>
   `;
   }).join('');
+  renderRodapeMedia(pctValoresDia, 5, 3);
 
   tbody.querySelectorAll('.colab-link').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -729,32 +750,144 @@ function agregarPeriodo(rowsPeriodo){
   return [...porColaborador.values()].map(agg => ({...agg, dias_totais: agg.datasComRegistro.size}));
 }
 
+// ------------------------------------------------------------
+// Ordenação por coluna (estilo Excel: clica no cabeçalho, ordena A-Z/0-9;
+// clica de novo, inverte) -- 1 estado por "formato" de tabela (Dia, Semana/
+// Período agregado, Período por colaborador têm colunas diferentes, cada
+// uma guarda sua própria ordenação escolhida).
+// ------------------------------------------------------------
+let sortDia = {key: null, dir: 1};
+let sortSemana = {key: null, dir: 1};
+let sortPeriodoColab = {key: null, dir: 1};
+
+function compararValores(a, b, dir){
+  const aNulo = a === null || a === undefined || a === '';
+  const bNulo = b === null || b === undefined || b === '';
+  if(aNulo && bNulo) return 0;
+  if(aNulo) return 1;   // vazio sempre por último, nas duas direções
+  if(bNulo) return -1;
+  if(typeof a === 'string' || typeof b === 'string'){
+    return String(a).localeCompare(String(b), 'pt-BR') * dir;
+  }
+  return (a - b) * dir;
+}
+
+// Extrai o valor "cru" (número ou string) de uma linha pra uma dada coluna
+// (chave), pra cada um dos 3 formatos de tabela -- é o que a ordenação usa
+// pra comparar, mesmo quando a célula mostra texto formatado (ex.: "% Ponto"
+// mostra "84,35%" mas ordena pelo número).
+function valorOrdenavelDia(key, r){
+  switch(key){
+    case 'nome': return r.nome || '';
+    case 'supervisor': return r.supervisor || null;
+    case 'total_gclick': return intervalParaMin(r.total_gclick);
+    case 'horas_trabalhadas': return intervalParaMin(r.horas_trabalhadas);
+    case 'workmonitor_total': return intervalParaMin(r.workmonitor_total);
+    case 'pct_ponto': return pctPontoDeLinhaDuracao(r);
+    case 'classificacao': return r.classificacao || null;
+    case 'justificativa': return r.ultima_justificativa || null;
+    default: return null;
+  }
+}
+function valorOrdenavelSemana(key, r){
+  switch(key){
+    case 'nome': return r.nome || '';
+    case 'supervisor': return r.supervisor || null;
+    case 'dias_com_dado': return r.dias_com_dado;
+    case 'gclick_min': return r.gclick_min || null;
+    case 'tangerino_min': return r.tangerino_min || null;
+    case 'wm_min': return r.wm_min || null;
+    case 'pct_ponto': return pctSobrePonto(r.gclick_min || null, r.tangerino_min || null);
+    case 'dias_sem_lancamento': return r.dias_sem_lancamento;
+    case 'dias_abaixo_lm': return r.dias_abaixo_lm;
+    default: return null;
+  }
+}
+function valorOrdenavelPeriodoColaborador(key, r){
+  switch(key){
+    case 'data': return r.data;
+    case 'dia_semana': return diaSemanaIndice(r.data);
+    case 'total_gclick': return intervalParaMin(r.total_gclick);
+    case 'horas_trabalhadas': return intervalParaMin(r.horas_trabalhadas);
+    case 'workmonitor_total': return intervalParaMin(r.workmonitor_total);
+    case 'pct_ponto': return pctPontoDeLinhaDuracao(r);
+    case 'classificacao': return r.classificacao || null;
+    default: return null;
+  }
+}
+
+// Ordena `rows` pela coluna escolhida em `state` (se houver); senão aplica
+// `ordenacaoPadrao` (o critério de sempre -- nome ou data).
+function ordenarLinhas(rows, state, valorFn, ordenacaoPadrao){
+  if(state.key){
+    return [...rows].sort((a, b) => compararValores(valorFn(state.key, a), valorFn(state.key, b), state.dir));
+  }
+  return ordenacaoPadrao(rows);
+}
+
+// Monta 1 <th> clicável, com setinha ▲/▼ quando é a coluna ativa da ordenação.
+function thSort(label, key, state){
+  let seta = '';
+  if(state.key === key) seta = `<span class="sort-seta">${state.dir === 1 ? '▲' : '▼'}</span>`;
+  return `<th class="th-sort" data-key="${key}">${label}${seta}</th>`;
+}
+
+// Liga o clique de cada <th class="th-sort"> do cabeçalho atual: clica na
+// mesma coluna -> inverte a direção; clica numa coluna diferente -> ordena
+// ascendente por ela. `aoOrdenar` redesenha cabeçalho (setinha) + tabela.
+function ativarOrdenacaoThead(state, aoOrdenar){
+  document.querySelectorAll('#thead-row .th-sort').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if(state.key === key) state.dir *= -1;
+      else { state.key = key; state.dir = 1; }
+      aoOrdenar();
+    });
+  });
+}
+
 function renderTheadDia(){
-  document.getElementById('thead-row').innerHTML = `
-    <th>Colaborador</th><th>Gestor</th><th>Total GCLICK</th><th>Horas Tangerino</th>
-    <th>Work Monitor</th><th>% Ponto</th><th>Classificação</th><th>Justificativa</th><th></th>`;
+  document.getElementById('thead-row').innerHTML =
+    thSort('Colaborador', 'nome', sortDia) + thSort('Gestor', 'supervisor', sortDia) +
+    thSort('Total GCLICK', 'total_gclick', sortDia) + thSort('Horas Tangerino', 'horas_trabalhadas', sortDia) +
+    thSort('Work Monitor', 'workmonitor_total', sortDia) + thSort('% Ponto', 'pct_ponto', sortDia) +
+    thSort('Classificação', 'classificacao', sortDia) + thSort('Justificativa', 'justificativa', sortDia) +
+    '<th></th>';
+  ativarOrdenacaoThead(sortDia, () => { renderTheadDia(); applyFilters(); });
 }
 function renderTheadSemana(){
-  document.getElementById('thead-row').innerHTML = `
-    <th>Colaborador</th><th>Gestor</th><th>Dias c/ dado</th><th>Total GCLICK</th>
-    <th>Total Tangerino</th><th>Total WorkMonitor</th><th>% Ponto</th><th>Sem lançamento</th><th>Abaixo do LM</th>`;
+  document.getElementById('thead-row').innerHTML =
+    thSort('Colaborador', 'nome', sortSemana) + thSort('Gestor', 'supervisor', sortSemana) +
+    thSort('Dias c/ dado', 'dias_com_dado', sortSemana) + thSort('Total GCLICK', 'gclick_min', sortSemana) +
+    thSort('Total Tangerino', 'tangerino_min', sortSemana) + thSort('Total WorkMonitor', 'wm_min', sortSemana) +
+    thSort('% Ponto', 'pct_ponto', sortSemana) + thSort('Sem lançamento', 'dias_sem_lancamento', sortSemana) +
+    thSort('Abaixo do LM', 'dias_abaixo_lm', sortSemana);
+  ativarOrdenacaoThead(sortSemana, () => { renderTheadSemana(); applyFilters(); });
 }
 function renderTheadPeriodoColaborador(){
-  document.getElementById('thead-row').innerHTML = `
-    <th>Data</th><th>Dia</th><th>G-Click</th><th>Tangerino</th><th>Work Monitor</th><th>% Ponto</th><th>Classificação</th>`;
+  document.getElementById('thead-row').innerHTML =
+    thSort('Data', 'data', sortPeriodoColab) + thSort('Dia', 'dia_semana', sortPeriodoColab) +
+    thSort('G-Click', 'total_gclick', sortPeriodoColab) + thSort('Tangerino', 'horas_trabalhadas', sortPeriodoColab) +
+    thSort('Work Monitor', 'workmonitor_total', sortPeriodoColab) + thSort('% Ponto', 'pct_ponto', sortPeriodoColab) +
+    thSort('Classificação', 'classificacao', sortPeriodoColab);
+  ativarOrdenacaoThead(sortPeriodoColab, () => { renderTheadPeriodoColaborador(); applyFilters(); });
 }
 
 function renderTabelaSemana(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
     tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum registro encontrado para os filtros aplicados.</td></tr>';
+    document.getElementById('tfoot').innerHTML = '';
     currentFilteredRows = [];
     return;
   }
-  const ordenadas = [...rows].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
+  const ordenadas = ordenarLinhas(rows, sortSemana, valorOrdenavelSemana,
+    rs => [...rs].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR')));
   currentFilteredRows = ordenadas;
+  const pctValoresSemana = [];
   tbody.innerHTML = ordenadas.map(r => {
     const p = pctSobrePonto(r.gclick_min || null, r.tangerino_min || null);
+    pctValoresSemana.push(p);
     return `
     <tr>
       <td>${escapeHtml(r.nome)}${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
@@ -769,6 +902,7 @@ function renderTabelaSemana(rows){
     </tr>
   `;
   }).join('');
+  renderRodapeMedia(pctValoresSemana, 6, 2);
 }
 
 // ------------------------------------------------------------
@@ -781,15 +915,19 @@ function renderTabelaPeriodoColaborador(rows){
   const tbody = document.getElementById('tbody');
   if(rows.length === 0){
     tbody.innerHTML = '<tr><td colspan="10" class="empty">Nenhum lançamento encontrado nesse período.</td></tr>';
+    document.getElementById('tfoot').innerHTML = '';
     currentFilteredRows = [];
     return;
   }
-  const ordenadas = [...rows].sort((a, b) => a.data.localeCompare(b.data));
+  const ordenadas = ordenarLinhas(rows, sortPeriodoColab, valorOrdenavelPeriodoColaborador,
+    rs => [...rs].sort((a, b) => a.data.localeCompare(b.data)));
   currentFilteredRows = ordenadas;
+  const pctValoresPeriodoColab = [];
   tbody.innerHTML = ordenadas.map(r => {
     const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
     const gclickMin = intervalParaMin(r.total_gclick);
     const p = pctSobrePonto(gclickMin, tangerinoMin);
+    pctValoresPeriodoColab.push(p);
     return `
     <tr>
       <td>${fmtDataBr(r.data)}</td>
@@ -801,6 +939,7 @@ function renderTabelaPeriodoColaborador(rows){
       <td>${r.classificacao ? `<span class="badge ${badgeClass(r.classificacao)}">${r.classificacao}</span>` : '<span class="muted">—</span>'}</td>
     </tr>`;
   }).join('');
+  renderRodapeMedia(pctValoresPeriodoColab, 5, 1);
 }
 
 function setViewMode(modo){
@@ -1237,6 +1376,32 @@ function fmtPctPonto(p){
 }
 function classePctPonto(p){
   return (p !== null && p < 85) ? ' class="destaque-baixo"' : '';
+}
+// % Ponto de uma linha "formato Dia" (total_gclick/horas_trabalhadas como
+// duração "HH:MM:SS") -- reaproveitado pela tabela E pela ordenação da
+// coluna % Ponto, pra não duplicar a fórmula em dois lugares.
+function pctPontoDeLinhaDuracao(r){
+  return pctSobrePonto(intervalParaMin(r.total_gclick), intervalParaMin(r.horas_trabalhadas));
+}
+
+// Rodapé com a média do % Ponto das linhas exibidas (ignora quem não tem %
+// calculável -- sem Tangerino não dá pra saber a %, entraria como ruído na
+// média). `colunasAntes`/`colunasDepois` = quantas colunas tem antes/depois
+// da coluna "% Ponto" nessa tabela específica (cada uma das 3 tem um layout
+// diferente), pra montar os <td colspan> em volta certinho.
+function renderRodapeMedia(pctValues, colunasAntes, colunasDepois){
+  const tfoot = document.getElementById('tfoot');
+  const validos = pctValues.filter(p => p !== null && p !== undefined);
+  if(!validos.length){
+    tfoot.innerHTML = '';
+    return;
+  }
+  const media = validos.reduce((soma, p) => soma + p, 0) / validos.length;
+  tfoot.innerHTML = `<tr class="tfoot-media">
+    <td colspan="${colunasAntes}" class="tfoot-label">Média do % Ponto (${validos.length} de ${pctValues.length} com dado)</td>
+    <td${classePctPonto(media)}>${fmtPctPonto(media)}</td>
+    ${colunasDepois > 0 ? `<td colspan="${colunasDepois}"></td>` : ''}
+  </tr>`;
 }
 
 function montarComparativo(row, neo){
