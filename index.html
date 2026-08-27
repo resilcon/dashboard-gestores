@@ -575,8 +575,8 @@ function renderTable(rows){
   currentFilteredRows = ordenadas;
   tbody.innerHTML = ordenadas.map((r, i) => {
     const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
-    const wmMin = intervalParaMin(r.workmonitor_total);
-    const p = pctSobrePonto(wmMin, tangerinoMin);
+    const gclickMin = intervalParaMin(r.total_gclick);
+    const p = pctSobrePonto(gclickMin, tangerinoMin);
     return `
     <tr>
       <td><button class="colab-link" data-idx="${i}">${escapeHtml(r.nome)}</button>${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
@@ -754,7 +754,7 @@ function renderTabelaSemana(rows){
   const ordenadas = [...rows].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'));
   currentFilteredRows = ordenadas;
   tbody.innerHTML = ordenadas.map(r => {
-    const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null);
+    const p = pctSobrePonto(r.gclick_min || null, r.tangerino_min || null);
     return `
     <tr>
       <td>${escapeHtml(r.nome)}${r.tipo_colaborador === 'estagiario' ? ' <span class="muted">(estagiário)</span>' : ''}</td>
@@ -788,8 +788,8 @@ function renderTabelaPeriodoColaborador(rows){
   currentFilteredRows = ordenadas;
   tbody.innerHTML = ordenadas.map(r => {
     const tangerinoMin = intervalParaMin(r.horas_trabalhadas);
-    const wmMin = intervalParaMin(r.workmonitor_total);
-    const p = pctSobrePonto(wmMin, tangerinoMin);
+    const gclickMin = intervalParaMin(r.total_gclick);
+    const p = pctSobrePonto(gclickMin, tangerinoMin);
     return `
     <tr>
       <td>${fmtDataBr(r.data)}</td>
@@ -1044,7 +1044,7 @@ function exportarExcel(){
       'Total G-Click': fmtInterval(r.total_gclick) || '',
       'Horas Tangerino': fmtInterval(r.horas_trabalhadas) || '',
       'Work Monitor': fmtInterval(r.workmonitor_total) || '',
-      '% Ponto (WM/Tangerino)': (() => { const p = pctSobrePonto(intervalParaMin(r.workmonitor_total), intervalParaMin(r.horas_trabalhadas)); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
+      '% Ponto (G-Click/Tangerino)': (() => { const p = pctSobrePonto(intervalParaMin(r.total_gclick), intervalParaMin(r.horas_trabalhadas)); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
       'Classificação': r.classificacao || '',
       'Justificativa': r.ultima_justificativa || '',
     }));
@@ -1057,7 +1057,7 @@ function exportarExcel(){
       'Total G-Click': r.gclick_min ? minParaHm(r.gclick_min, false) : '',
       'Total Tangerino': r.tangerino_min ? minParaHm(r.tangerino_min, false) : '',
       'Total WorkMonitor': r.wm_min ? minParaHm(r.wm_min, false) : '',
-      '% Ponto (WM/Tangerino)': (() => { const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
+      '% Ponto (G-Click/Tangerino)': (() => { const p = pctSobrePonto(r.gclick_min || null, r.tangerino_min || null); return p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`; })(),
       'Dias sem lançamento': r.dias_sem_lancamento,
       'Dias abaixo do LM': r.dias_abaixo_lm,
     }));
@@ -1071,14 +1071,14 @@ function exportarExcel(){
     const colabId = document.getElementById('f-colaborador-periodo').value;
     if(colabId){
       dados = currentFilteredRows.map(r => {
-        const p = pctSobrePonto(intervalParaMin(r.workmonitor_total), intervalParaMin(r.horas_trabalhadas));
+        const p = pctSobrePonto(intervalParaMin(r.total_gclick), intervalParaMin(r.horas_trabalhadas));
         return {
           'Data': fmtDataBr(r.data),
           'Dia da semana': nomeDiaSemana(r.data),
           'G-Click': fmtInterval(r.total_gclick) || '',
           'Tangerino': fmtInterval(r.horas_trabalhadas) || '',
           'Work Monitor': fmtInterval(r.workmonitor_total) || '',
-          '% Ponto (WM/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
+          '% Ponto (G-Click/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
           'Classificação': r.classificacao || '',
         };
       });
@@ -1086,7 +1086,7 @@ function exportarExcel(){
       nomeArquivo = `dashboard_gestores_${nomeColab.replace(/\s+/g, '_')}_${inicioSel}_a_${fimSel}.xlsx`;
     }else{
       dados = currentFilteredRows.map(r => {
-        const p = pctSobrePonto(r.wm_min || null, r.tangerino_min || null);
+        const p = pctSobrePonto(r.gclick_min || null, r.tangerino_min || null);
         return {
           'Colaborador': r.nome,
           'Gestor': r.supervisor || '',
@@ -1094,7 +1094,7 @@ function exportarExcel(){
           'Total G-Click': r.gclick_min ? minParaHm(r.gclick_min, false) : '',
           'Total Tangerino': r.tangerino_min ? minParaHm(r.tangerino_min, false) : '',
           'Total WorkMonitor': r.wm_min ? minParaHm(r.wm_min, false) : '',
-          '% Ponto (WM/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
+          '% Ponto (G-Click/Tangerino)': p === null ? '' : `${p.toFixed(2).replace('.', ',')}%`,
           'Dias sem lançamento': r.dias_sem_lancamento,
           'Dias abaixo do LM': r.dias_abaixo_lm,
         };
