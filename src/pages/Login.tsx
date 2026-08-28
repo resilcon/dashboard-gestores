@@ -22,19 +22,13 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
-      <div className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
-        <div className="flex items-center gap-2.5">
-          <img src={`${import.meta.env.BASE_URL}logo-resilcon.png`} alt="Resilcon" className="h-8 w-8 rounded-md bg-white/90 object-contain p-1" />
-          <span className="text-sm font-semibold tracking-tight">Resilcon Contabilidade</span>
-        </div>
-        <div className="max-w-sm">
-          <h2 className="text-2xl font-semibold tracking-tight">Painel de gestão de produtividade</h2>
-          <p className="mt-3 text-sm text-primary-foreground/80">
-            Acompanhe G-Click, Tangerino e WorkMonitor da sua equipe em um único lugar, com uma visão clara de quem
-            está dentro do esperado e quem precisa de atenção.
-          </p>
-        </div>
-        <p className="text-xs text-primary-foreground/60">© {new Date().getFullYear()} Resilcon Contabilidade Consultiva</p>
+      <div className="hidden flex-col items-center justify-center gap-8 bg-primary p-10 text-primary-foreground lg:flex">
+        <img
+          src={`${import.meta.env.BASE_URL}logo-resilcon.png`}
+          alt="Resilcon"
+          className="h-40 w-40 rounded-3xl bg-white/90 object-contain p-6"
+        />
+        <h2 className="max-w-sm text-center text-3xl font-semibold tracking-tight">Painel de gestão de produtividade</h2>
       </div>
 
       <div className="flex items-center justify-center p-6">
