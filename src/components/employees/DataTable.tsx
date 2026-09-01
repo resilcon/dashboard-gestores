@@ -21,6 +21,7 @@ interface DataTableProps<TData> {
   footer?: ReactNode
   onRowClick?: (row: TData) => void
   getRowId?: (row: TData) => string
+  initialSorting?: SortingState
 }
 
 /**
@@ -29,8 +30,8 @@ interface DataTableProps<TData> {
  * Ordenação clicando no cabeçalho (como no dashboard antigo), sticky header,
  * skeleton/empty state.
  */
-export function DataTable<TData>({ columns, data, isLoading, emptyMessage, footer, onRowClick, getRowId }: DataTableProps<TData>) {
-  const [sorting, setSorting] = useState<SortingState>([])
+export function DataTable<TData>({ columns, data, isLoading, emptyMessage, footer, onRowClick, getRowId, initialSorting }: DataTableProps<TData>) {
+  const [sorting, setSorting] = useState<SortingState>(initialSorting ?? [])
 
   const table = useReactTable({
     data,

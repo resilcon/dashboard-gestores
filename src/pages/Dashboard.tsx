@@ -18,6 +18,7 @@ import { addDays, isWeekend, previousBusinessDay, startOfWeekMonday, weekDates, 
 import { calcularPctPonto } from '@/utils/pct-ponto'
 import { intervalToMinutes } from '@/utils/duration'
 import { exportarAgregado, exportarDia, exportarPeriodoColaborador } from '@/utils/export-excel'
+import { useIdentity } from '@/context/IdentityContext'
 import type { DashboardRecord, JustifyTarget, PeriodMode } from '@/types/domain'
 
 // Referência estável (fora do componente) -- se fosse `?? new Set()` dentro
@@ -39,14 +40,28 @@ export default function DashboardPage() {
   const [periodListColaborador, setPeriodListColaborador] = useState<{ id: string; nome: string } | null>(null)
   const [isExporting, setIsExporting] = useState(false)
 
+  // Diretoria (Elmer/Barbara/João, via is_diretor no cadastro do gestor) vê
+  // todo mundo -- qualquer outro gestor só vê quem está sob a supervisão dele
+  // mesmo (comparado pelo nome de login, já que não há auth real aqui).
+  const { identidade } = useIdentity()
+  const podeVerTudo = identidade?.isDiretor ?? false
+  const meuNome = identidade?.nome
+
   const recent = useDashboardRecent()
   // Sábado/domingo não contam pra nada na página (pedido explícito) -- filtrado
   // uma única vez aqui, então todo o resto (KPIs, tabelas, agregação) já
-  // trabalha só com dias úteis.
-  const allRows = useMemo(() => filterDiasUteis(recent.data ?? []), [recent.data])
+  // trabalha só com dias úteis. A restrição por supervisor entra no mesmo
+  // lugar, pra valer automaticamente em Dia/Semana/Período sem duplicar.
+  const allRows = useMemo(() => {
+    const rows = filterDiasUteis(recent.data ?? [])
+    return podeVerTudo ? rows : rows.filter((r) => r.supervisor === meuNome)
+  }, [recent.data, podeVerTudo, meuNome])
 
   const range = useDashboardRange(mode === 'periodo' ? date : null, mode === 'periodo' ? endDate : null, colaboradorFiltro || undefined)
-  const rangeRows = useMemo(() => filterDiasUteis(range.data ?? []), [range.data])
+  const rangeRows = useMemo(() => {
+    const rows = filterDiasUteis(range.data ?? [])
+    return podeVerTudo ? rows : rows.filter((r) => r.supervisor === meuNome)
+  }, [range.data, podeVerTudo, meuNome])
 
   // Dia abonado (justificativa marcada como tal) sai de todo cálculo -- igual
   // fim de semana, só que o critério vem de uma justificativa, não da data.
@@ -255,6 +270,7 @@ export default function DashboardPage() {
                 isLoading={recent.isLoading}
                 onRowClick={setSelectedRow}
                 getRowId={(r) => `${r.colaborador_id}-${r.data}`}
+                initialSorting={[{ id: 'nome', desc: false }]}
                 footer={
                   <PctPontoFooterRow
                     values={filterNaoAbonados(filteredDia, diasAbonados).map((r) =>
@@ -274,6 +290,7 @@ export default function DashboardPage() {
                 isLoading={recent.isLoading}
                 getRowId={(r) => r.colaborador_id}
                 onRowClick={(r) => abrirListaPeriodo(r.colaborador_id, r.nome)}
+                initialSorting={[{ id: 'nome', desc: false }]}
                 footer={
                   <PctPontoFooterRow
                     values={filteredSemana.map((r) => calcularPctPonto(r.gclick_min || null, r.tangerino_min || null))}
@@ -307,6 +324,7 @@ export default function DashboardPage() {
                   isLoading={range.isLoading}
                   getRowId={(r) => r.colaborador_id}
                   onRowClick={(r) => abrirListaPeriodo(r.colaborador_id, r.nome)}
+                  initialSorting={[{ id: 'nome', desc: false }]}
                   footer={
                     <PctPontoFooterRow
                       values={filteredPeriodoAgregado.map((r) => calcularPctPonto(r.gclick_min || null, r.tangerino_min || null))}
