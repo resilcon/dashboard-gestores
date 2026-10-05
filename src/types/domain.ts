@@ -137,3 +137,18 @@ export interface PeriodFilter {
   /** Só usado no modo Período. */
   endDate?: IsoDate_
 }
+
+/** `tarefas_gclick` — 1 linha por tarefa lançada no G-Click (subida pelo Work Monitor a partir da planilha exportada). */
+export interface TarefaGclick {
+  id: string
+  colaborador_id: string
+  data: IsoDate_
+  hora: string | null
+  categoria: 'rotina' | 'plr' | 'premiacao' | string
+  inscricao?: string | null
+  cliente: string | null
+  sistema: string | null
+  departamento: string | null
+  tarefa: string | null
+  duracao: PgInterval
+}

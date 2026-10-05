@@ -4,6 +4,7 @@ export const queryKeys = {
   dashboardRange: (start: string, end: string, colaboradorId?: string) =>
     ['dashboard', 'range', start, end, colaboradorId ?? 'todos'] as const,
   employeeDetail: (colaboradorId: string, date: string) => ['employee', colaboradorId, date] as const,
+  tarefasGclick: (start: string, end: string) => ['tarefas-gclick', start, end] as const,
   colaboradores: () => ['colaboradores'] as const,
   gestores: () => ['gestores'] as const,
   gestoresAtivos: () => ['gestores', 'ativos'] as const,

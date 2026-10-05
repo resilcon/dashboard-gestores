@@ -2,6 +2,7 @@ import type { DashboardRecord, ResumoPeriodoColaborador } from '@/types/domain'
 import { intervalToHm, intervalToMinutes, minutesToHm } from '@/utils/duration'
 import { calcularPctPonto, formatarPctPonto } from '@/utils/pct-ponto'
 import { formatDateBr, weekdayName } from '@/utils/date'
+import { formatarMinutos, type Grupo, type Lancamento } from '@/utils/tarefas-gclick'
 
 // `xlsx` só é carregado quando alguém realmente clica em "Exportar" -- é uma
 // lib pesada e não faz sentido no bundle inicial de quem só quer consultar a
@@ -57,4 +58,66 @@ export async function exportarPeriodoColaborador(rows: DashboardRecord[], nomeCo
   }))
   const nomeArquivo = `dashboard_gestores_${nomeColaborador.replace(/\s+/g, '_')}_${inicio}_a_${fim}.xlsx`
   await baixar(dados, 'Período', nomeArquivo)
+}
+
+async function baixarVariasAbas(abas: { nome: string; dados: Record<string, unknown>[] }[], nomeArquivo: string) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+  for (const aba of abas) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(aba.dados), aba.nome)
+  XLSX.writeFile(wb, nomeArquivo)
+}
+
+const tempoEmHoras = (min: number) => Math.round((min / 60) * 100) / 100
+
+function linhasDeGrupo(grupos: Grupo[], rotuloColuna: string, extras: Record<string, string> = {}) {
+  return grupos.map((g) => ({
+    [rotuloColuna]: g.rotulo,
+    ...Object.fromEntries(Object.entries(extras).map(([coluna, dimensao]) => [coluna, g.principais[dimensao] ?? ''])),
+    'Tempo total': formatarMinutos(g.totalMin),
+    'Tempo total (horas)': tempoEmHoras(g.totalMin),
+    '% do total': Math.round(g.pct * 1000) / 10,
+    Lançamentos: g.qtd,
+    'Média por lançamento (min)': Math.round(g.mediaMin * 10) / 10,
+    Colaboradores: g.colaboradores,
+    'Dias com lançamento': g.dias,
+  }))
+}
+
+/** Exporta o recorte atual da aba Tarefas: um resumo por dimensão + os lançamentos detalhados. */
+export async function exportarTarefas(
+  dados: {
+    colaboradores: Grupo[]
+    departamentos: Grupo[]
+    tarefas: Grupo[]
+    clientes: Grupo[]
+    lancamentos: Lancamento[]
+  },
+  inicio: string,
+  fim: string,
+) {
+  await baixarVariasAbas(
+    [
+      { nome: 'Por colaborador', dados: linhasDeGrupo(dados.colaboradores, 'Colaborador', { 'Departamento principal': 'departamento', 'Tarefa principal': 'tipo' }) },
+      { nome: 'Por departamento', dados: linhasDeGrupo(dados.departamentos, 'Departamento', { 'Tarefa principal': 'tipo' }) },
+      { nome: 'Por tarefa', dados: linhasDeGrupo(dados.tarefas, 'Tarefa', { 'Departamento principal': 'departamento' }) },
+      { nome: 'Por cliente', dados: linhasDeGrupo(dados.clientes, 'Cliente', { 'Departamento principal': 'departamento' }) },
+      {
+        nome: 'Lançamentos',
+        dados: dados.lancamentos.map((l) => ({
+          Data: formatDateBr(l.data),
+          Hora: l.hora?.slice(0, 5) ?? '',
+          Colaborador: l.colaborador,
+          Gestor: l.supervisor ?? '',
+          Departamento: l.departamento,
+          Tarefa: l.tarefa,
+          'Tipo de tarefa': l.tipo,
+          Cliente: l.cliente,
+          Categoria: l.categoria,
+          Interna: l.interna ? 'Sim' : 'Não',
+          'Duração (min)': Math.round(l.min * 10) / 10,
+        })),
+      },
+    ],
+    `tarefas_gclick_${inicio}_a_${fim}.xlsx`,
+  )
 }

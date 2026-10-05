@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { FileText, LayoutGrid, ShieldCheck, Users } from 'lucide-react'
+import { FileText, LayoutGrid, ListChecks, ShieldCheck, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIdentity } from '@/context/IdentityContext'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Visão geral', icon: LayoutGrid, end: true },
   { to: '/equipe', label: 'Minha equipe', icon: Users, end: false },
+  { to: '/tarefas', label: 'Tarefas G-Click', icon: ListChecks, end: false },
   { to: '/justificativas', label: 'Justificativas', icon: FileText, end: false },
 ]
 

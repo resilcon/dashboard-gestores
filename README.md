@@ -59,7 +59,11 @@ nenhum lugar deste projeto.
 
 Mesmo projeto do dashboard antigo (`vw_resumo_diario`, `neocode_diario`,
 `apps_uso_diario`, `colaboradores`, `gestores`, `justificativas_diarias`) —
-nenhuma tabela, view ou nome de coluna foi alterado. Toda query fica em
+nenhuma tabela, view ou nome de coluna foi alterado. A aba **Tarefas G-Click**
+é a única que lê `tarefas_gclick` (preenchida pelo Work Monitor a partir da
+planilha exportada do G-Click) — somente leitura, sempre com filtro de data
+e paginada em janelas de 7 dias (a tabela passa de 90 mil linhas e o OFFSET
+profundo estoura o statement timeout do Supabase). Toda query fica em
 [`src/services/supabase/`](src/services/supabase/) (`queries.ts` = leitura,
 `mutations.ts` = escrita) — nenhum componente chama o Supabase direto.
 
@@ -80,15 +84,16 @@ src/
 │   ├── layout/       # AppShell, Sidebar, Header, MobileNav, ProtectedRoute
 │   ├── dashboard/    # KpiCards, AttentionList, ClassificationBadge
 │   ├── employees/    # DataTable + columns, EmployeeDetailSheet, JustifyDialog
+│   ├── tarefas/      # Graficos (barras Recharts), colunas das tabelas da aba Tarefas
 │   ├── filters/      # PeriodToolbar (Dia/Semana/Período + busca/gestor/status)
 │   └── feedback/     # EmptyState, ErrorState, Skeletons
-├── pages/            # Login, Dashboard, Team, Justifications, Administration
+├── pages/            # Login, Dashboard, Team, Tarefas, Justifications, Administration
 ├── context/          # IdentityContext ("quem sou eu"), ThemeContext (dark mode)
-├── hooks/            # useDashboardData, useEmployeeDetail, useTeamData, useJustificativas
+├── hooks/            # useDashboardData, useEmployeeDetail, useTeamData, useJustificativas, useTarefasGclick
 ├── services/supabase/# client.ts, queries.ts, mutations.ts, pagination.ts, demo-data.ts
 ├── types/domain.ts   # tipos derivados 1:1 dos campos reais do Supabase
 ├── utils/            # duration, date, pct-ponto, aggregate-period, dashboard-metrics,
-│                     # employee-detail, export-excel — toda a lógica de negócio pura,
+│                     # employee-detail, tarefas-gclick, export-excel — toda a lógica de negócio pura,
 │                     # separada de componentes (testável sem precisar renderizar nada)
 └── lib/              # query-keys.ts, utils.ts (cn())
 ```

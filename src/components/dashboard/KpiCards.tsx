@@ -75,7 +75,7 @@ const TONE_STYLES = {
   neutral: { iconBg: 'bg-primary/10', iconText: 'text-primary', value: 'text-foreground' },
 } as const
 
-function KpiCard({
+export function KpiCard({
   icon: Icon,
   label,
   value,
@@ -83,14 +83,17 @@ function KpiCard({
   tone,
   hintTone = 'muted',
   tooltip,
+  valueClassName,
 }: {
   icon: LucideIcon
   label: string
-  value: number
+  value: React.ReactNode
   hint?: string
   tone?: 'success' | 'warning' | 'danger'
   hintTone?: 'success' | 'danger' | 'muted'
   tooltip?: React.ReactNode
+  /** Troca o tamanho do valor — útil quando ele é texto (ex.: nome de tarefa) em vez de número. */
+  valueClassName?: string
 }) {
   const styles = TONE_STYLES[tone ?? 'neutral']
 
@@ -112,7 +115,7 @@ function KpiCard({
         </div>
       </div>
 
-      <p className={cn('mt-3 text-[28px] leading-none font-semibold tabular-nums', tone ? styles.value : 'text-foreground')}>{value}</p>
+      <p className={cn('mt-3 text-[28px] leading-none font-semibold tabular-nums', tone ? styles.value : 'text-foreground', valueClassName)}>{value}</p>
 
       {hint && (
         <p

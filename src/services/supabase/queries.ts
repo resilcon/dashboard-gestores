@@ -6,9 +6,11 @@ import type {
   DashboardRecord,
   Gestor,
   Justificativa,
+  TarefaGclick,
   WorkMonitorRecord,
 } from '@/types/domain'
 import type { IsoDate } from '@/utils/date'
+import { dividirPeriodo } from '@/utils/tarefas-gclick'
 
 const DASHBOARD_VIEW = 'vw_resumo_diario'
 
@@ -123,4 +125,45 @@ export async function fetchGestoresAtivos(): Promise<Pick<Gestor, 'nome' | 'is_d
     .order('nome', { ascending: true })
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+const COLUNAS_TAREFAS = 'id,colaborador_id,data,hora,categoria,cliente,sistema,departamento,tarefa,duracao'
+const TAREFAS_DIAS_POR_JANELA = 7
+const TAREFAS_JANELAS_EM_PARALELO = 4
+
+/**
+ * Tarefas lançadas no G-Click num intervalo -- só as colunas que a aba de
+ * tarefas usa. A tabela passa de 90 mil linhas, então nunca buscar sem filtro
+ * de data. Paginar o ano inteiro com OFFSET vai ficando mais lento a cada
+ * página (offsets de milhares de linhas estouravam o statement timeout de ~3 s
+ * do Supabase assim que duas requisições rodavam juntas), por isso o período é
+ * dividido em janelas de 7 dias: cada janela tem poucos milhares de linhas
+ * (offsets baratos), é paginada em sequência e poucas janelas rodam em
+ * paralelo. O desempate por `id` na ordenação garante que as páginas não
+ * repitam/percam linhas (várias tarefas têm a mesma data).
+ */
+export async function fetchTarefasGclick(startDate: IsoDate, endDate: IsoDate): Promise<TarefaGclick[]> {
+  const janelas = dividirPeriodo(startDate, endDate, TAREFAS_DIAS_POR_JANELA)
+  const resultados: TarefaGclick[][] = new Array(janelas.length)
+
+  let proxima = 0
+  const trabalhador = async () => {
+    while (proxima < janelas.length) {
+      const indice = proxima++
+      const [inicio, fim] = janelas[indice]
+      resultados[indice] = await fetchAllPages<TarefaGclick>((from, to) =>
+        supabase
+          .from('tarefas_gclick')
+          .select(COLUNAS_TAREFAS)
+          .gte('data', inicio)
+          .lte('data', fim)
+          .order('data', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to),
+      )
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(TAREFAS_JANELAS_EM_PARALELO, janelas.length) }, trabalhador))
+
+  return resultados.flat()
 }
